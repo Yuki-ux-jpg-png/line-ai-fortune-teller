@@ -44,7 +44,7 @@ export const config = {
   stripeSecretKey: required("STRIPE_SECRET_KEY"),
   stripeWebhookSecret: required("STRIPE_WEBHOOK_SECRET"),
   appBaseUrl,
-  freeConsultationLimit: integer("FREE_CONSULTATION_LIMIT", 3),
+  freeConsultationLimit: integer("FREE_CONSULTATION_LIMIT", 1),
   consultationPriceJpy: integer("CONSULTATION_PRICE_JPY", 1000),
   minDelayMinutes,
   maxDelayMinutes,

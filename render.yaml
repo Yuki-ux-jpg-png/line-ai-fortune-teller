@@ -31,7 +31,7 @@ services:
       - key: APP_BASE_URL
         sync: false
       - key: FREE_CONSULTATION_LIMIT
-        value: "3"
+        value: "1"
       - key: CONSULTATION_PRICE_JPY
         value: "1000"
       - key: MIN_DELAY_MINUTES
@@ -77,7 +77,7 @@ services:
       - key: APP_BASE_URL
         sync: false
       - key: FREE_CONSULTATION_LIMIT
-        value: "3"
+        value: "1"
       - key: CONSULTATION_PRICE_JPY
         value: "1000"
       - key: MIN_DELAY_MINUTES
