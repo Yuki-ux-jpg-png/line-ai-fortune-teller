@@ -25,8 +25,8 @@ function boolean(name: string, fallback: boolean): boolean {
 }
 
 const appBaseUrl = required("APP_BASE_URL").replace(/\/$/, "");
-const minDelayMinutes = integer("MIN_DELAY_MINUTES", 120);
-const maxDelayMinutes = integer("MAX_DELAY_MINUTES", 180);
+const minDelayMinutes = integer("MIN_DELAY_MINUTES", 90);
+const maxDelayMinutes = integer("MAX_DELAY_MINUTES", 120);
 
 if (maxDelayMinutes < minDelayMinutes) {
   throw new Error("MAX_DELAY_MINUTES は MIN_DELAY_MINUTES 以上にしてください");
@@ -44,7 +44,7 @@ export const config = {
   stripeSecretKey: required("STRIPE_SECRET_KEY"),
   stripeWebhookSecret: required("STRIPE_WEBHOOK_SECRET"),
   appBaseUrl,
-  freeConsultationLimit: integer("FREE_CONSULTATION_LIMIT", 1),
+  freeConsultationLimit: integer("FREE_CONSULTATION_LIMIT", 3),
   consultationPriceJpy: integer("CONSULTATION_PRICE_JPY", 1000),
   minDelayMinutes,
   maxDelayMinutes,

@@ -173,7 +173,7 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
           : "";
       await replyMessage(event.replyToken, [
         textMessage(
-          `ご相談を受け付けました。AI鑑定結果は通常2〜3時間以内にお送りします。${remaining}`,
+          `ご相談を受け付けました。AI鑑定結果は通常1時間30分〜2時間以内にお送りします。${remaining}`,
         ),
       ]);
       return;
@@ -253,7 +253,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
         result.lineUserId,
         [
           textMessage(
-            "お支払いを確認しました。ご相談を受け付けました。AI鑑定結果は通常2〜3時間以内にお送りします。",
+            "お支払いを確認しました。ご相談を受け付けました。AI鑑定結果は通常1時間30分〜2時間以内にお送りします。",
           ),
         ],
         crypto.randomUUID(),
