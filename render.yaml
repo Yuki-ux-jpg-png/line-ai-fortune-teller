@@ -1,0 +1,98 @@
+services:
+  - type: web
+    name: line-fortune-bot
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run migrate && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: line-fortune-db
+          property: connectionString
+      - key: DATABASE_SSL
+        value: "true"
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5-mini
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: FREE_CONSULTATION_LIMIT
+        value: "3"
+      - key: CONSULTATION_PRICE_JPY
+        value: "1000"
+      - key: MIN_DELAY_MINUTES
+        value: "120"
+      - key: MAX_DELAY_MINUTES
+        value: "180"
+      - key: MAX_QUESTION_CHARS
+        value: "500"
+      - key: MAX_DAILY_CONSULTATIONS_PER_USER
+        value: "5"
+      - key: DAILY_AI_GENERATION_LIMIT
+        value: "200"
+
+  - type: cron
+    name: line-fortune-worker
+    runtime: node
+    region: singapore
+    plan: starter
+    schedule: "*/5 * * * *"
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: line-fortune-db
+          property: connectionString
+      - key: DATABASE_SSL
+        value: "true"
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5-mini
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: FREE_CONSULTATION_LIMIT
+        value: "3"
+      - key: CONSULTATION_PRICE_JPY
+        value: "1000"
+      - key: MIN_DELAY_MINUTES
+        value: "120"
+      - key: MAX_DELAY_MINUTES
+        value: "180"
+      - key: MAX_QUESTION_CHARS
+        value: "500"
+      - key: MAX_DAILY_CONSULTATIONS_PER_USER
+        value: "5"
+      - key: DAILY_AI_GENERATION_LIMIT
+        value: "200"
+
+databases:
+  - name: line-fortune-db
+    region: singapore
+    plan: free
+    postgresMajorVersion: "18"
