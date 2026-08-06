@@ -3,10 +3,64 @@ import { config } from "./config.js";
 import { pool } from "./db.js";
 import { verifyLineSignature } from "./line.js";
 import { stripe } from "./payments.js";
-import type { LineWebhookBody } from "./types.js";
+import type {
+  LineEvent,
+  LinePostbackEvent,
+  LineTextMessageEvent,
+  LineWebhookBody,
+} from "./types.js";
 import { handleLineEvent, handleStripeEvent } from "./webhook.js";
 
 const app = express();
+
+function isLegacyFortuneEvent(event: LineEvent): boolean {
+  if (
+    event.type === "message" &&
+    (event as LineTextMessageEvent).message?.type === "text"
+  ) {
+    const text = (event as LineTextMessageEvent).message.text.trim();
+    return text === "占い" || text === "今日の占い";
+  }
+
+  return (
+    event.type === "postback" &&
+    (event as LinePostbackEvent).postback?.data === "fortune=today"
+  );
+}
+
+async function forwardToLegacyFortuneWebhook(
+  rawBody: Buffer,
+  lineSignature: string,
+): Promise<void> {
+  const url = config.legacyFortuneWebhookUrl;
+  if (!url) {
+    throw new Error("LEGACY_FORTUNE_WEBHOOK_URL が設定されていません");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-line-signature": lineSignature,
+      },
+      body: rawBody,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      throw new Error(
+        `既存Vercel Webhookへの転送に失敗しました: ${response.status} ${details}`,
+      );
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 app.post(
   "/webhooks/line",
@@ -28,13 +82,26 @@ app.post(
       return;
     }
 
+    const events = payload.events ?? [];
+    const containsLegacyFortuneEvent = events.some(isLegacyFortuneEvent);
+
     try {
-      for (const event of payload.events ?? []) {
+      // 「占い」「今日の占い」「fortune=today」は、元の本文と署名を
+      // 一切変更せず既存Vercelへ転送する。既存コード側の変更は不要。
+      if (containsLegacyFortuneEvent) {
+        await forwardToLegacyFortuneWebhook(rawBody, signature);
+      }
+
+      // 上記の旧機能イベントはRenderでは処理しない。
+      // それ以外だけを新しい有料相談機能へ渡す。
+      for (const event of events) {
+        if (isLegacyFortuneEvent(event)) continue;
         await handleLineEvent(event);
       }
+
       res.sendStatus(200);
     } catch (error) {
-      console.error("LINE webhook error", error);
+      console.error("LINE webhook routing error", error);
       res.sendStatus(500);
     }
   },

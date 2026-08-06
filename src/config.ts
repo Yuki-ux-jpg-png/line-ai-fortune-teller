@@ -24,6 +24,24 @@ function boolean(name: string, fallback: boolean): boolean {
   return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
 }
 
+function optionalHttpsUrl(name: string): string | null {
+  const raw = process.env[name]?.trim();
+  if (!raw) return null;
+
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`環境変数 ${name} は有効なURLで指定してください`);
+  }
+
+  if (url.protocol !== "https:") {
+    throw new Error(`環境変数 ${name} は https:// で始まるURLにしてください`);
+  }
+
+  return url.toString();
+}
+
 const appBaseUrl = required("APP_BASE_URL").replace(/\/$/, "");
 const minDelayMinutes = integer("MIN_DELAY_MINUTES", 90);
 const maxDelayMinutes = integer("MAX_DELAY_MINUTES", 120);
@@ -39,6 +57,7 @@ export const config = {
   databaseSsl: boolean("DATABASE_SSL", true),
   lineChannelSecret: required("LINE_CHANNEL_SECRET"),
   lineChannelAccessToken: required("LINE_CHANNEL_ACCESS_TOKEN"),
+  legacyFortuneWebhookUrl: optionalHttpsUrl("LEGACY_FORTUNE_WEBHOOK_URL"),
   openAiApiKey: required("OPENAI_API_KEY"),
   openAiModel: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini",
   stripeSecretKey: required("STRIPE_SECRET_KEY"),
