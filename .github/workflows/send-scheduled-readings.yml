@@ -1,54 +1,50 @@
-services:
-  - type: web
-    name: line-fortune-bot
-    runtime: node
-    region: singapore
-    plan: free
-    buildCommand: npm install --include=dev && npm run build
-    startCommand: npm run migrate && npm start
-    healthCheckPath: /health
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: line-fortune-db
-          property: connectionString
-      - key: DATABASE_SSL
-        value: "true"
-      - key: LINE_CHANNEL_SECRET
-        sync: false
-      - key: LINE_CHANNEL_ACCESS_TOKEN
-        sync: false
-      - key: LEGACY_FORTUNE_WEBHOOK_URL
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_MODEL
-        value: gpt-5-mini
-      - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false
-      - key: APP_BASE_URL
-        sync: false
-      - key: FREE_CONSULTATION_LIMIT
-        value: "2"
-      - key: CONSULTATION_PRICE_JPY
-        value: "500"
-      - key: MIN_DELAY_MINUTES
-        value: "90"
-      - key: MAX_DELAY_MINUTES
-        value: "120"
-      - key: MAX_QUESTION_CHARS
-        value: "500"
-      - key: MAX_DAILY_CONSULTATIONS_PER_USER
-        value: "5"
-      - key: DAILY_AI_GENERATION_LIMIT
-        value: "200"
+name: Send scheduled readings
 
-databases:
-  - name: line-fortune-db
-    region: singapore
-    plan: free
-    postgresMajorVersion: "18"
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+concurrency:
+  group: send-scheduled-readings
+  cancel-in-progress: false
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --include=dev
+
+      - name: Build
+        run: npm run build
+
+      - name: Run worker
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_SSL: "true"
+          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: "gpt-5-mini"
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          APP_BASE_URL: "https://line-fortune-bot-zs2z.onrender.com"
+          FREE_CONSULTATION_LIMIT: "2"
+          CONSULTATION_PRICE_JPY: "500"
+          MIN_DELAY_MINUTES: "90"
+          MAX_DELAY_MINUTES: "120"
+          MAX_QUESTION_CHARS: "500"
+          MAX_DAILY_CONSULTATIONS_PER_USER: "5"
+          DAILY_AI_GENERATION_LIMIT: "200"
+        run: npm run worker
