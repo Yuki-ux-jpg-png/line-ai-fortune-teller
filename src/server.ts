@@ -47,7 +47,9 @@ async function forwardToLegacyFortuneWebhook(
         "Content-Type": "application/json",
         "x-line-signature": lineSignature,
       },
-      body: rawBody,
+      // Node/TypeScript の fetch 型定義では Buffer を BodyInit として
+      // 受け付けないため、元のUTF-8本文を文字列としてそのまま転送する。
+      body: rawBody.toString("utf8"),
       signal: controller.signal,
     });
 
@@ -86,8 +88,8 @@ app.post(
     const containsLegacyFortuneEvent = events.some(isLegacyFortuneEvent);
 
     try {
-      // 「占い」「今日の占い」「fortune=today」は、元の本文と署名を
-      // 一切変更せず既存Vercelへ転送する。既存コード側の変更は不要。
+      // 「占い」「今日の占い」「fortune=today」は既存Vercelへ転送する。
+      // 既存Vercel側のコード変更は不要。
       if (containsLegacyFortuneEvent) {
         await forwardToLegacyFortuneWebhook(rawBody, signature);
       }
