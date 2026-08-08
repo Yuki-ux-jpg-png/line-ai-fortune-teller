@@ -26,7 +26,8 @@ function limitReadingLength(text: string): string {
   // できるだけ文の途中では切らず、8,500〜10,000文字の範囲にある
   // 最後の文末で終了する。
   for (let i = clippedChars.length - 1; i >= MIN_NATURAL_CLIP_CHARS; i -= 1) {
-    if (["。", "！", "？"].includes(clippedChars[i])) {
+    const char = clippedChars[i];
+    if (char !== undefined && ["。", "！", "？"].includes(char)) {
       return clippedChars.slice(0, i + 1).join("").trim();
     }
   }

@@ -54,7 +54,11 @@ function splitReadingForLine(text: string): string[] {
     const searchLow = Math.max(minTake, take - 300);
 
     for (let i = searchHigh - 1; i >= searchLow - 1; i -= 1) {
-      if (["。", "！", "？", "\n"].includes(chars[offset + i])) {
+      const char = chars[offset + i];
+      if (
+        char !== undefined &&
+        ["。", "！", "？", "\n"].includes(char)
+      ) {
         take = i + 1;
         break;
       }
