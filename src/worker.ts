@@ -151,7 +151,7 @@ async function processDeliveries(): Promise<void> {
       }
 
       const messages = [
-        textMessage("お待たせしました。AI鑑定結果をお届けします。"),
+        textMessage("お待たせしました。貴重なお時間割いてご相談いただきありがとうございます。では、回答しますね"),
         ...readingChunks.map((chunk) => textMessage(chunk)),
         textMessage(
           "今回の相談はこれで完了です。次の相談は新しい無料枠または相談チケットを使用します。",
