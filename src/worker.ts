@@ -49,7 +49,6 @@ function splitReadingForLine(text: string): string[] {
 
     let take = Math.min(Math.max(idealTake, minTake), maxTake);
 
-    // 分割位置の前後300文字以内で、できるだけ自然な文末を探す。
     const searchHigh = Math.min(maxTake, take + 300);
     const searchLow = Math.max(minTake, take - 300);
 
@@ -80,6 +79,36 @@ function splitReadingForLine(text: string): string[] {
   }
 
   return chunks;
+}
+
+async function logOpenConsultations(label: string): Promise<void> {
+  const result = await pool.query(`
+    SELECT
+      id,
+      status,
+      created_at,
+      confirmed_at,
+      deliver_at,
+      generation_attempts,
+      send_attempts,
+      last_error
+    FROM consultations
+    WHERE status IN (
+      'draft',
+      'awaiting_payment',
+      'queued_generation',
+      'generating',
+      'scheduled',
+      'sending'
+    )
+    ORDER BY created_at DESC
+    LIMIT 10
+  `);
+
+  console.log(
+    `[diagnostic:${label}] open consultations:`,
+    JSON.stringify(result.rows, null, 2),
+  );
 }
 
 async function processGenerations(): Promise<void> {
@@ -129,8 +158,6 @@ async function processDeliveries(): Promise<void> {
         ),
       ];
 
-      // LINEは1回のリクエストで最大5メッセージまでなので、
-      // intro + 鑑定最大3分割 + completion = 最大5件に固定する。
       if (messages.length > 5) {
         throw new Error(`LINE送信メッセージ数が上限を超えています: ${messages.length}`);
       }
@@ -147,8 +174,15 @@ async function processDeliveries(): Promise<void> {
 
 async function main(): Promise<void> {
   await recoverStaleJobs();
+
+  // 一時診断: 個人情報や相談内容は出さず、処理中状態だけ確認する。
+  await logOpenConsultations("before");
+
   await processGenerations();
   await processDeliveries();
+
+  // Worker実行後に状態がどう変わったかも確認する。
+  await logOpenConsultations("after");
 }
 
 main()
