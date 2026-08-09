@@ -142,6 +142,26 @@ async function processDeliveries(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const debugResult = await pool.query(`
+    SELECT
+      id,
+      status,
+      created_at,
+      confirmed_at,
+      deliver_at,
+      generation_attempts,
+      send_attempts,
+      last_error
+    FROM consultations
+    ORDER BY created_at DESC
+    LIMIT 10
+  `);
+
+  console.log(
+    "Recent consultations:",
+    JSON.stringify(debugResult.rows, null, 2),
+  );
+
   await recoverStaleJobs();
   await processGenerations();
   await processDeliveries();
