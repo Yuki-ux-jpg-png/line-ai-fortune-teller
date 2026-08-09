@@ -234,7 +234,7 @@ export function paymentMessage(checkoutUrl: string): LineMessage {
           },
           {
             type: "text",
-            text: "決済完了後、通常1時間30分〜2時間以内にAI鑑定結果をお送りします。",
+            text: "決済完了後、通常1時間30分〜2時間以内に相談に回答します。少々お待ちください。",
             size: "sm",
             color: "#666666",
             wrap: true,
