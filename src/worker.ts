@@ -102,6 +102,10 @@ async function processGenerations(): Promise<void> {
     } catch (error) {
       console.error(`Generation failed for ${job.id}`, error);
       await markGenerationFailed(job, error);
+
+      // 同じWorker実行内で即時再試行しない。
+      // 次回の5分間隔Workflowで再試行する。
+      break;
     }
   }
 }
@@ -142,26 +146,6 @@ async function processDeliveries(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const debugResult = await pool.query(`
-    SELECT
-      id,
-      status,
-      created_at,
-      confirmed_at,
-      deliver_at,
-      generation_attempts,
-      send_attempts,
-      last_error
-    FROM consultations
-    ORDER BY created_at DESC
-    LIMIT 10
-  `);
-
-  console.log(
-    "Recent consultations:",
-    JSON.stringify(debugResult.rows, null, 2),
-  );
-
   await recoverStaleJobs();
   await processGenerations();
   await processDeliveries();
