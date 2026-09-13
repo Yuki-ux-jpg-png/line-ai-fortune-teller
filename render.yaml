@@ -50,5 +50,5 @@ services:
 databases:
   - name: line-fortune-db
     region: singapore
-    plan: free
+    plan: 0.1c-256mb
     postgresMajorVersion: "18"
