@@ -1,0 +1,53 @@
+# A separate Blueprint. Never replace the Japanese root render.yaml.
+services:
+  - type: web
+    name: line-fortune-bot-tw
+    runtime: node
+    branch: taiwan-line-bot
+    rootDir: tw
+    region: singapore
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run migrate && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: Asia/Taipei
+      - key: LINE_TW_CHANNEL_SECRET
+        sync: false
+      - key: LINE_TW_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: SUPABASE_URL
+        value: https://fffliyqwsbbbqgibezgw.supabase.co
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: TW_DATABASE_URL
+        sync: false
+      - key: TW_DATABASE_SSL
+        value: "true"
+      - key: TW_OPENAI_API_KEY
+        sync: false
+      - key: TW_OPENAI_MODEL
+        sync: false
+      - key: TW_STRIPE_SECRET_KEY
+        sync: false
+      - key: TW_STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: TW_APP_BASE_URL
+        sync: false
+      - key: FREE_CONSULTATION_LIMIT
+        value: "2"
+      - key: CONSULTATION_PRICE_JPY
+        value: "500"
+      - key: MIN_DELAY_MINUTES
+        value: "90"
+      - key: MAX_DELAY_MINUTES
+        value: "120"
+      - key: MAX_QUESTION_CHARS
+        value: "500"
+      - key: MAX_DAILY_CONSULTATIONS_PER_USER
+        value: "5"
+      - key: DAILY_AI_GENERATION_LIMIT
+        value: "200"
