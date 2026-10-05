@@ -7,7 +7,8 @@ async function main() {
   const client = await pool.connect();
   try {
     await client.query("SELECT pg_advisory_lock(hashtext('line_tw_migrations'))");
-    await client.query("CREATE SCHEMA IF NOT EXISTS line_tw");
+    const namespace = await client.query("SELECT to_regnamespace('line_tw') AS schema");
+    if (!namespace.rows[0]?.schema) throw new Error("line_tw スキーマをDB管理者で準備してください");
     await client.query("SET search_path TO line_tw");
     await client.query("CREATE TABLE IF NOT EXISTS schema_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())");
     const files = (await fs.readdir(migrationsDir)).filter(n => n.endsWith(".sql")).sort();

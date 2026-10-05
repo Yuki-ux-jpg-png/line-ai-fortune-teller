@@ -42,7 +42,9 @@ function optionalHttpsUrl(name: string): string | null {
   return url.toString();
 }
 
-const appBaseUrl = required("TW_APP_BASE_URL").replace(/\/$/, "");
+const deploymentUrl = optionalHttpsUrl("TW_APP_BASE_URL") ?? optionalHttpsUrl("RENDER_EXTERNAL_URL");
+if (!deploymentUrl) throw new Error("TW_APP_BASE_URL または RENDER_EXTERNAL_URL が設定されていません");
+const appBaseUrl = deploymentUrl.replace(/\/$/, "");
 const minDelayMinutes = integer("MIN_DELAY_MINUTES", 90);
 const maxDelayMinutes = integer("MAX_DELAY_MINUTES", 120);
 
@@ -64,7 +66,8 @@ export const config = {
   openAiApiKey: required("TW_OPENAI_API_KEY"),
   openAiModel: required("TW_OPENAI_MODEL"),
   stripeSecretKey: required("TW_STRIPE_SECRET_KEY"),
-  stripeWebhookSecret: required("TW_STRIPE_WEBHOOK_SECRET"),
+  // Bootstrap before Stripe can register the new deployment URL. Payments stay disabled.
+  stripeWebhookSecret: process.env.TW_STRIPE_WEBHOOK_SECRET?.trim() ?? "",
   appBaseUrl,
   freeConsultationLimit: integer("FREE_CONSULTATION_LIMIT", 2),
   consultationPriceJpy: integer("CONSULTATION_PRICE_JPY", 500),
@@ -83,4 +86,3 @@ export function randomDeliveryDate(now = new Date()): Date {
   const delay = config.minDelayMinutes + Math.floor(Math.random() * width);
   return new Date(now.getTime() + delay * 60_000);
 }
-

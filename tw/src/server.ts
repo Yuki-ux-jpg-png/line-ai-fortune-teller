@@ -25,6 +25,7 @@ app.post("/webhooks/line", express.raw({ type: "application/json", limit: "1mb" 
   } catch { console.error("Taiwan LINE webhook processing failed"); res.sendStatus(500); }
 });
 app.post("/webhooks/stripe", express.raw({ type: "application/json", limit: "1mb" }), async (req, res) => {
+  if (!config.stripeWebhookSecret) { res.sendStatus(503); return; }
   const signature = req.header("stripe-signature");
   if (!signature || !Buffer.isBuffer(req.body)) { res.sendStatus(400); return; }
   try {
@@ -36,7 +37,7 @@ app.get("/health", async (_req, res) => {
   try {
     const result = await pool.query<{ schema: string }>("SELECT current_schema() AS schema");
     if (result.rows[0]?.schema !== "line_tw") throw new Error("Wrong schema");
-    res.json({ ok: true, locale: "zh-TW", timezone: "Asia/Taipei" });
+    res.json({ ok: true, locale: "zh-TW", timezone: "Asia/Taipei", paymentsReady: Boolean(config.stripeWebhookSecret) });
   } catch { res.status(503).json({ ok: false }); }
 });
 app.get("/payment/success", (_req, res) => res.type("html").send(`<!doctype html><html lang="zh-TW"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>付款完成</title><body style="font-family:sans-serif;padding:32px;line-height:1.8"><h1>已收到付款</h1><p>付款確認後，我們會透過LINE傳送受理訊息。請回到LINE稍候。</p></body></html>`));

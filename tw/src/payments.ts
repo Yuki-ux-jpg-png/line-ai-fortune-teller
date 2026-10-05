@@ -8,6 +8,7 @@ export async function getOrCreateCheckoutUrl(
   consultationId: string,
   lineUserId: string,
 ): Promise<string> {
+  if (!config.stripeWebhookSecret) throw new Error("付款功能尚未啟用，請稍後再試。");
   return withTransaction(async (client) => {
     const result = await client.query<{
       stripe_session_id: string | null;
@@ -86,4 +87,3 @@ export async function getOrCreateCheckoutUrl(
     return session.url;
   });
 }
-
