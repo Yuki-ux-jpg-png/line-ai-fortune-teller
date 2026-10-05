@@ -33,7 +33,9 @@ TZ=Asia/Taipei
 
 キーはGitHubへコミットせず、Renderの環境変数に設定する。日本版LINEシークレット・トークンはコピーしない。既存のSupabaseやOpenAIのキーを新サービスに設定するには、その利用範囲を確認する。DBの専用ユーザーとStripeの台湾専用Webhookエンドポイントも必要。
 
-既存Render PostgreSQLを使う場合は、新サービスに渡す前に専用スキーマと権限を用意する。`provision.sql` はDB管理者向けの例。パスワードは手動で安全に設定し、通常の公開URLやチャットへ貼らない。
+最初のWeb Service配備では、`TW_APP_BASE_URL` を省略するとRenderの `RENDER_EXTERNAL_URL` を利用する。`TW_STRIPE_WEBHOOK_SECRET` が未設定でも日替わり・無料相談の起動確認は可能だが、Stripe Webhookは503を返し、Checkoutの作成も拒否する。台湾専用のStripeエンドポイント作成後に署名シークレットを設定して有料決済を有効にする。Workerには確定した `TW_APP_BASE_URL` を明示する。
+
+相談DBはSupabaseの専用 `line_tw` スキーマと `line_tw_app` ロールを使用する。DB管理者が先にスキーマ・USAGE/CREATE権限を準備する。`provision.sql` はその例で、アプリのマイグレーションはデータベース全体のCREATE権限を必要としない。パスワードは手動で安全に設定し、通常の公開URLやチャットへ貼らない。
 
 ## Render設定
 
@@ -75,3 +77,7 @@ npm test
 `npm test` は11件すべて成功。実SQLによる台湾専用ロールの日本版テーブルへのアクセス拒否も確認しました。本番DBへのSQL実行は行っていません。
 
 台湾版の本番サービス、認証情報、DB権限、Worker、Stripe Webhook、LINE Webhookの接続は未完了です。既存日本版のコード・認証情報・稼働中Renderサービスを変更せず、台湾版ブランチのtwフォルダだけを配備してください。
+
+## 2026-10-05 起動準備
+
+台湾LINE・Supabaseキーと、ユーザーが共用を明示承認したOpenAI・Stripeキーを台湾版Render環境変数グループへ保存済み。相談用Supabaseスキーマ・専用ロールと接続URLはユーザーが設定し、管理者権限なし・台湾領域のUSAGE/CREATE権限ありを確認した。`npm test` は13件成功し、専用ロールでのマイグレーションと、署名シークレット未設定時の決済拒否を検証した。実サービスの配備・Webhook接続は、設定値を保存しただけでは完了と扱わない。
