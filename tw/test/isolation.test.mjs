@@ -14,6 +14,7 @@ Object.assign(process.env,{
 const { app }=await import('../dist/src/server.js');
 const { pool }=await import('../dist/src/db.js');
 const { stripe }=await import('../dist/src/payments.js');
+const { getOrCreateCheckoutUrl }=await import('../dist/src/payments.js');
 const { taipeiDate,isDailyFortuneEvent,getDailyFortune }=await import('../dist/src/daily.js');
 const { verifyLineSignature,tellerCarousel,paymentMessage }=await import('../dist/src/line.js');
 const { handleStripeEvent }=await import('../dist/src/webhook.js');
@@ -95,6 +96,22 @@ test('Japanese database keys cannot satisfy a missing Taiwan key; namespace and 
  assert.equal(config.databaseSchema,'line_tw');assert.equal(pool.options.options,'-c search_path=line_tw -c timezone=Asia/Taipei');
  const card=JSON.stringify(paymentMessage('https://checkout.example'));assert.match(card,/日圓/);assert.match(card,/JPY/);assert(!card.includes('新台幣'));
  assert(!/[ぁ-んァ-ヶ]/.test(JSON.stringify(tellerCarousel([teller]))));
+});
+test('Render URL bootstraps the service without a Stripe webhook secret',()=>{
+ const env={...process.env,RENDER_EXTERNAL_URL:'https://taiwan-bootstrap.onrender.com'};
+ delete env.TW_APP_BASE_URL;delete env.TW_STRIPE_WEBHOOK_SECRET;
+ const child=spawnSync(process.execPath,['--input-type=module','-e',"const {config}=await import('./dist/src/config.js'); console.log(JSON.stringify({url:config.appBaseUrl,paymentsReady:!!config.stripeWebhookSecret}))"],{env,encoding:'utf8'});
+ assert.equal(child.status,0,child.stderr);
+ assert.deepEqual(JSON.parse(child.stdout.trim()),{url:'https://taiwan-bootstrap.onrender.com',paymentsReady:false});
+});
+test('unconfigured Stripe rejects webhooks and checkout creation before accessing data',async()=>{
+ const secret=config.stripeWebhookSecret;config.stripeWebhookSecret='';const count=queries.length;
+ try {
+  const response=await fetch(base+'/webhooks/stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  assert.equal(response.status,503);
+  await assert.rejects(()=>getOrCreateCheckoutUrl('consultation','user'),/付款功能尚未啟用/);
+  assert.equal(queries.length,count);
+ } finally {config.stripeWebhookSecret=secret;}
 });
 test('AI instructions lock Taiwanese Traditional Chinese and Unicode result length',()=>{
  assert.match(READING_INSTRUCTIONS,/繁體中文（台灣/);assert.match(READING_INSTRUCTIONS,/Asia\/Taipei/);
