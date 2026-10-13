@@ -1,3 +1,4 @@
+import { cleanupExpiredIntakes } from "./intake.js";
 import { generateReading } from "./ai.js";
 import { config } from "./config.js";
 import {
@@ -173,6 +174,7 @@ async function processDeliveries(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await cleanupExpiredIntakes();
   await recoverStaleJobs();
 
   // 一時診断: 個人情報や相談内容は出さず、処理中状態だけ確認する。
