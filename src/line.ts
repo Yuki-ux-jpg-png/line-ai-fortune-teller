@@ -42,6 +42,17 @@ async function lineRequest(
     body: JSON.stringify(body),
   });
 
+  // A retry can arrive after LINE accepted the first request but its response
+  // was lost. Only the documented, accepted push retry is a success here.
+  if (
+    endpoint === "push" &&
+    retryKey &&
+    response.status === 409 &&
+    response.headers.get("x-line-accepted-request-id")
+  ) {
+    return;
+  }
+
   if (!response.ok) {
     throw new Error(
       `LINE API ${endpoint} failed: ${response.status} ${await response.text()}`,
@@ -333,7 +344,7 @@ export function guidedWelcomeMessage(): LineMessage {
     ["仕事", "仕事のことで悩んでいます"],
     ["人間関係", "人間関係のことで悩んでいます"],
     ["気持ちの整理", "今の気持ちを整理したいです"],
-  ];
+  ] as const;
   return {
     type: "text",
     text: "今はどんなことが気になっていますか？下のテーマを選ぶか、短い言葉でそのまま送ってください。質問は最大3回で終わり、途中でも相談文を完成できます。",

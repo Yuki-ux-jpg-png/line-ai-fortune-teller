@@ -13,6 +13,7 @@ import {
 } from "./consultations.js";
 import { pool } from "./db.js";
 import { pushMessage, textMessage } from "./line.js";
+import { assertWorkerSchema } from "./worker-schema.js";
 
 const LINE_TEXT_CHUNK_MAX_CHARS = 4_800;
 const MAX_READING_CHUNKS = 3;
@@ -174,6 +175,9 @@ async function processDeliveries(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Fail before cleanup, job claims, AI generation, or message delivery when
+  // this worker version is ahead of the database schema.
+  await assertWorkerSchema(pool);
   await cleanupExpiredIntakes();
   await recoverStaleJobs();
 
