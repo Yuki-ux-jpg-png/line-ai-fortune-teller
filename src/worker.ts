@@ -5,6 +5,7 @@ import {
   claimDeliveryJob,
   claimGenerationJob,
   countTodayGenerations,
+  holdAmbiguousDeliveries,
   markDelivered,
   markDeliveryFailed,
   markGenerationFailed,
@@ -93,7 +94,7 @@ async function logOpenConsultations(label: string): Promise<void> {
       deliver_at,
       generation_attempts,
       send_attempts,
-      last_error
+      (SELECT reason FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id) AS hold_reason
     FROM consultations
     WHERE status IN (
       'draft',
@@ -179,6 +180,8 @@ async function main(): Promise<void> {
   // this worker version is ahead of the database schema.
   await assertWorkerSchema(pool);
   await cleanupExpiredIntakes();
+  const heldDeliveries = await holdAmbiguousDeliveries();
+  if (heldDeliveries) console.warn("Deliveries held for individual review", {count:heldDeliveries});
   await recoverStaleJobs();
 
   // 一時診断: 個人情報や相談内容は出さず、処理中状態だけ確認する。

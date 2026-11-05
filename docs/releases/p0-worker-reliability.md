@@ -52,3 +52,28 @@ Stripeの旧通知先の再有効化、アカウント移行、料金変更、�
 次は共通Web会員ID・メール認証・市場/規約同意履歴の実装。その後、Stripeアカウントの役割を確定して資格同期へ進む。台湾・韓国の稼働ブランチは、この日本版修正で更新しない。
 
 参考: [LINEの受理済み再試行の仕様](https://developers.line.biz/en/docs/messaging-api/retrying-api-request/)
+
+## Rollout fence (migration 010)
+
+Migration 010 adds `consultation_processing_holds` and `first_send_attempt_at`.
+Every consultation already in queued_generation/generating/scheduled/sending at
+migration time receives a `pre_rollout_review` hold. The consultation state,
+question, answer, free allowance and paid credit are preserved. Both claim paths
+exclude held rows. The previous failed consultation remains failed.
+
+After a first delivery attempt, jobs older than 23 hours are held for individual
+review before retrying; LINE's retry-key acceptance window is 24 hours. This does
+not infer delivery, refund automatically, or mint a fresh retry key.
+
+Preflight now requires both 009 and 010 plus their columns. Deploy the paired
+Web/worker revision; the existing JP Render start command runs migrations before
+serving. The verified production migration ledger already contains 001–008, so
+007/008 must not be replayed. Do not apply the complete historical set to a fresh
+production database without reviewing those customer-specific repair scripts.
+
+For each hold, inspect payment/free entitlement and the LINE acceptance/delivery
+record privately, then record a disposition. Removing a hold can cause a real
+message on the next worker run and requires a specific decision. No hold-release
+endpoint or automatic release is shipped. Monitoring must track held counts in
+addition to a green workflow. Source rollback does not remove the additive tables
+or release the holds; never run an older worker which ignores holds.

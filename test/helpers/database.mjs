@@ -15,6 +15,10 @@ export async function createTestDatabase({ intake = true, recorded = true } = {}
       await db.query("INSERT INTO schema_migrations(filename) VALUES ($1)", ["009_consultation_intake_sessions.sql"]);
     }
   }
+  if (intake) {
+    await db.exec(await readFile(new URL("../../migrations/010_consultation_processing_holds.sql", import.meta.url), "utf8"));
+    if (recorded) await db.query("INSERT INTO schema_migrations(filename) VALUES ($1)", ["010_consultation_processing_holds.sql"]);
+  }
   return db;
 }
 

@@ -539,6 +539,17 @@ export type GenerationJob = {
   generation_attempts: number;
 };
 
+export async function holdAmbiguousDeliveries(): Promise<number> {
+  const result = await query(
+    `INSERT INTO consultation_processing_holds(consultation_id,reason)
+     SELECT id,'line_retry_window_expired' FROM consultations
+     WHERE status IN ('scheduled','sending') AND send_attempts > 0
+       AND first_send_attempt_at < now() - interval '23 hours'
+     ON CONFLICT DO NOTHING`,
+  );
+  return result.rowCount ?? 0;
+}
+
 export async function recoverStaleJobs(): Promise<void> {
   await query(
     `UPDATE consultations
@@ -570,6 +581,7 @@ export async function claimGenerationJob(): Promise<GenerationJob | null> {
          FROM consultations
         WHERE status = 'queued_generation'
           AND generation_attempts < 3
+          AND NOT EXISTS (SELECT 1 FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id)
         ORDER BY created_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED`,
@@ -697,6 +709,7 @@ export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
         WHERE status = 'scheduled'
           AND deliver_at <= now()
           AND send_attempts < 5
+          AND NOT EXISTS (SELECT 1 FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id)
         ORDER BY deliver_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED`,
@@ -707,6 +720,7 @@ export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
     const result = await client.query<DeliveryJob>(
       `UPDATE consultations
           SET status = 'sending',
+              first_send_attempt_at = COALESCE(first_send_attempt_at,now()),
               send_attempts = send_attempts + 1,
               locked_at = now(),
               updated_at = now()

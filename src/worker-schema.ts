@@ -1,6 +1,6 @@
 // This module deliberately does not import config, the pool, LINE, or OpenAI.
 // It is also used by the read-only release preflight command.
-export const REQUIRED_WORKER_MIGRATION = "009_consultation_intake_sessions.sql";
+export const REQUIRED_WORKER_MIGRATION = "010_consultation_processing_holds.sql";
 
 type SchemaDatabase = {
   query(sql: string): Promise<{ rows: Record<string, unknown>[] }>;
@@ -8,6 +8,8 @@ type SchemaDatabase = {
 
 const REQUIRED_COLUMNS = {
   schema_migrations: { filename: "text" },
+  consultations: { first_send_attempt_at: "timestamptz" },
+  consultation_processing_holds: { consultation_id: "uuid", reason: "text", held_at: "timestamptz" },
   consultation_intake_sessions: {
     line_user_id: "text",
     stage: "text",
@@ -36,7 +38,7 @@ export async function assertWorkerSchema(db: SchemaDatabase): Promise<void> {
     SELECT table_name, column_name, udt_name
       FROM information_schema.columns
      WHERE table_schema = 'public'
-       AND table_name IN ('schema_migrations', 'consultation_intake_sessions')
+       AND table_name IN ('schema_migrations', 'consultation_intake_sessions', 'consultations', 'consultation_processing_holds')
   `);
   const columns = new Map(
     result.rows.map((row) => [
@@ -59,11 +61,11 @@ export async function assertWorkerSchema(db: SchemaDatabase): Promise<void> {
 
   const migration = await db.query(`
     SELECT filename FROM public.schema_migrations
-     WHERE filename = '${REQUIRED_WORKER_MIGRATION}'
+     WHERE filename IN ('009_consultation_intake_sessions.sql','${REQUIRED_WORKER_MIGRATION}')
   `);
-  if (!migration.rows.length) {
+  if (migration.rows.length !== 2) {
     throw new WorkerSchemaError([
-      `migration ${REQUIRED_WORKER_MIGRATION} is not recorded`,
+      `migrations 009 and ${REQUIRED_WORKER_MIGRATION} must both be recorded`,
     ]);
   }
 }

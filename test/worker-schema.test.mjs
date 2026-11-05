@@ -16,10 +16,10 @@ test("legacy schema is rejected before any consultation data is changed", async 
 test("a table without the migration record does not pass preflight", async (t) => {
   const db = await createTestDatabase({ recorded: false });
   t.after(() => db.close());
-  await assert.rejects(assertWorkerSchema(db), /migration 009_consultation_intake_sessions.sql is not recorded/);
+  await assert.rejects(assertWorkerSchema(db), /migrations 009 and 010_consultation_processing_holds.sql must both be recorded/);
 });
 
-test("migration 009 passes preflight inside a read-only transaction", async (t) => {
+test("migrations 009 and 010 pass preflight inside a read-only transaction", async (t) => {
   const db = await createTestDatabase();
   t.after(() => db.close());
   await db.query("BEGIN READ ONLY");
