@@ -1,0 +1,31 @@
+# Separate, opt-in Blueprint. Do not sync until additional running cost is approved.
+services:
+  - type: cron
+    name: line-fortune-worker-jp
+    runtime: node
+    region: singapore
+    plan: 0.5c-512mb
+    branch: main
+    schedule: '*/5 * * * *'
+    autoDeployTrigger: checksPass
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run worker && npm run check:worker-health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: 'true'
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.6-terra
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: APP_BASE_URL
+        value: https://line-fortune-bot-zs2z.onrender.com

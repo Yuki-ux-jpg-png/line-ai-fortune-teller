@@ -77,3 +77,21 @@ message on the next worker run and requires a specific decision. No hold-release
 endpoint or automatic release is shipped. Monitoring must track held counts in
 addition to a green workflow. Source rollback does not remove the additive tables
 or release the holds; never run an older worker which ignores holds.
+
+## Scheduler health follow-up
+
+Migration 011 stores only aggregate run timestamps in `worker_health`. The worker
+holds a session advisory lock for its full run across scheduler providers. A
+separate `/health/worker` endpoint returns 503 after 15 minutes without a successful
+run, on a newer failed run, or for unheld overdue queued work. Web readiness
+`/health` remains separate so a late scheduler cannot cause web restart loops.
+A GitHub health workflow reports failure through the existing Actions mechanism;
+its schedule has the same delivery limitations as other GitHub schedules.
+
+`ops/render-worker.yaml` is an opt-in standalone Cron definition. It is NOT added
+to the root Blueprint and has not provisioned a service. Approval of Render's
+minimum $1/month plus runtime charges is required before provisioning. Populate
+only JP service secrets, verify the target database and 011, then observe several
+five-minute runs before disabling the GitHub processing schedule. The DB lock
+protects overlap during cutover. Keep migration 010 holds in place. Run success
+is not proof that every consultation was delivered; review queue health and holds.

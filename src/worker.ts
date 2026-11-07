@@ -16,6 +16,8 @@ import { pool } from "./db.js";
 import { pushMessage, textMessage } from "./line.js";
 import { assertWorkerSchema } from "./worker-schema.js";
 
+import { recordWorkerRun } from "./worker-health.js";
+
 const LINE_TEXT_CHUNK_MAX_CHARS = 4_800;
 const MAX_READING_CHUNKS = 3;
 
@@ -179,6 +181,13 @@ async function main(): Promise<void> {
   // Fail before cleanup, job claims, AI generation, or message delivery when
   // this worker version is ahead of the database schema.
   await assertWorkerSchema(pool);
+  const lease = await pool.connect();
+  let lock;
+  try { lock = await lease.query("SELECT pg_try_advisory_lock(714902,1) AS acquired"); }
+  catch (error) { lease.release(); throw error; }
+  if (!lock.rows[0]?.acquired) { lease.release(); console.log("Another JP worker is active"); return; }
+  try {
+  await recordWorkerRun(pool,"started");
   await cleanupExpiredIntakes();
   const heldDeliveries = await holdAmbiguousDeliveries();
   if (heldDeliveries) console.warn("Deliveries held for individual review", {count:heldDeliveries});
@@ -192,6 +201,14 @@ async function main(): Promise<void> {
 
   // Worker実行後に状態がどう変わったかも確認する。
   await logOpenConsultations("after");
+  await recordWorkerRun(pool,"succeeded");
+  } catch (error) {
+    await recordWorkerRun(pool,"failed");
+    throw error;
+  } finally {
+    try { await lease.query("SELECT pg_advisory_unlock(714902,1)"); }
+    finally { lease.release(); }
+  }
 }
 
 main()
