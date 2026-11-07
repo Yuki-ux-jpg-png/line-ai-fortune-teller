@@ -11,6 +11,8 @@ import type {
 } from "./types.js";
 import { handleLineEvent, handleStripeEvent } from "./webhook.js";
 
+import { workerHealth } from "./worker-health.js";
+
 const app = express();
 
 function isLegacyFortuneEvent(event: LineEvent): boolean {
@@ -144,6 +146,13 @@ app.get("/health", async (_req, res) => {
     console.error("health check failed", error);
     res.status(503).json({ ok: false });
   }
+});
+
+// Separate from web readiness: worker lag must not cause web restart loops.
+app.get("/health/worker", async (_req,res) => {
+  res.set("Cache-Control","no-store");
+  try { const health=await workerHealth(pool); res.status(health.ok?200:503).json(health); }
+  catch { res.status(503).json({ok:false,reason:"worker_health_unavailable"}); }
 });
 
 app.get("/payment/success", (_req, res) => {

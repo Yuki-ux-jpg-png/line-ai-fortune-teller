@@ -15,7 +15,8 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "migrate:dev": "tsx src/migrate.ts",
     "check:schema": "node scripts/check-worker-schema.mjs",
-    "test": "node --test --test-concurrency=1 test/*.test.mjs"
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "check:worker-health": "node scripts/check-worker-health.mjs"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
