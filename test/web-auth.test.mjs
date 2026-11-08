@@ -76,6 +76,8 @@ test("notification job OIDC validates signature, audience, exact repo/main/workf
   const { publicKey, privateKey } = await generateKeyPair("RS256");
   const claims = {
     repository: "Yuki-ux-jpg-png/line-ai-fortune-teller",
+    repository_id: "1324948792",
+    repository_owner_id: "58500553",
     ref: "refs/heads/main",
     workflow_ref:
       "Yuki-ux-jpg-png/line-ai-fortune-teller/.github/workflows/send-scheduled-readings.yml@refs/heads/main",
@@ -86,7 +88,7 @@ test("notification job OIDC validates signature, audience, exact repo/main/workf
       .setProtectedHeader({ alg: "RS256" })
       .setIssuer("https://token.actions.githubusercontent.com")
       .setSubject(
-        "repo:Yuki-ux-jpg-png/line-ai-fortune-teller:ref:refs/heads/main",
+        "repo:58500553/1324948792:ref:refs/heads/main",
       )
       .setAudience(aud)
       .setIssuedAt()
@@ -95,6 +97,8 @@ test("notification job OIDC validates signature, audience, exact repo/main/workf
   await verifyOperationsToken(await sign(), async () => publicKey);
   for (const extra of [
     { repository: "other/repo" },
+    { repository_id: "different" },
+    { repository_owner_id: "different" },
     { ref: "refs/heads/other" },
     { event_name: "pull_request" },
     { workflow_ref: "other" },
