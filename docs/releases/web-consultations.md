@@ -10,6 +10,6 @@ LINE連携は、自分のWeb画面で発行したコードをLINEへ送り、LIN
 
 録音は2分・10MBまで。原音は保存せず、原文を安全確認してから編集可能な下書きへ進む。音声の文字起こしにはOpenAIのAPI料金がかかり、実時間が2分を超える場合はプロバイダー応答後にも拒否する。
 
-Web内の通知、任意Push・メール、DB Outbox、最大6回の再試行、7日集計を実装する。停止・削除・メール変更を、会員DBの同意資格を使って配送直前にも確認する。本文や鑑定は通知へ載せない。SMTP・VAPID秘密値はRenderだけに置き、GitHub Actionsは専用の短期OIDCで通知処理を依頼する。
+Web内の通知、任意Push・メール、DB Outbox、最大6回の再試行、7日集計を実装する。停止・削除・メール変更を、会員DBの同意資格を使って配送直前にも確認する。本文や鑑定は通知へ載せない。VAPID秘密値はRender、SMTP秘密値はVercelの専用メールAPIに置く。Render無料プランのSMTP制限に合わせ、GitHub Actionsは通知処理用とメールAPI用に対象URLの異なる短期OIDCを発行する。SMTP秘密値をGitHubやRenderへ複製しない。
 
 `WEB_CONSULTATION_ENABLED` は接続・DB・配備が揃うまで有効にしない。既存のRender Cron追加は不要。台湾・韓国のブランチとサービスを今回の日本版変更で更新しない。実メール・本人MFA・実機録音・Push受信・実Stripeライフサイクルは別に確認する。

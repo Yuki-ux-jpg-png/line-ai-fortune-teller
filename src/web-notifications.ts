@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import * as webpush from "web-push";
-import nodemailer from "nodemailer";
+import { emailDelivery } from "./web-email-relay.js";
 import { query, withTransaction } from "./db.js";
 import { WebError, type WebMember } from "./web-auth.js";
 export function pushConfiguration() {
@@ -9,9 +9,7 @@ export function pushConfiguration() {
     enabled: !!(
       process.env.WEB_PUSH_PUBLIC_KEY && process.env.WEB_PUSH_PRIVATE_KEY
     ),
-    emailEnabled: !!(
-      process.env.WEB_SMTP_USER && process.env.WEB_SMTP_PASSWORD
-    ),
+    emailEnabled: process.env.WEB_EMAIL_DELIVERY_ENABLED === "true",
   };
 }
 export function validatedSubscription(raw: unknown) {
@@ -189,7 +187,7 @@ export async function enqueueWebNotifications() {
     JOIN web_identities i ON i.canonical_user_id=c.line_user_id JOIN web_notification_preferences p ON p.web_user_id=i.web_user_id
     WHERE p.email_enabled AND n.created_at>=p.updated_at AND n.read_at IS NULL ON CONFLICT DO NOTHING`);
 }
-export async function deliverWebNotifications() {
+export async function deliverWebNotifications(emailAuthorization: string) {
   await query(
     "UPDATE web_notification_outbox SET status='failed',lease_until=NULL WHERE status='sending' AND lease_until<now() AND attempts>=6",
   );
@@ -263,33 +261,12 @@ export async function deliverWebNotifications() {
             [job.web_user_id],
           );
           if (p.rows[0]?.email_enabled) {
-            const transport = nodemailer.createTransport({
-              host: "smtp.gmail.com",
-              port: 587,
-              secure: false,
-              requireTLS: true,
-              auth: {
-                user: process.env.WEB_SMTP_USER,
-                pass: process.env.WEB_SMTP_PASSWORD,
-              },
-              connectionTimeout: 10000,
-              socketTimeout: 20000,
+            const result = await emailDelivery(emailAuthorization, {
+              subject: job.web_user_id,
+              receipt: consent.rows[0].verification_token,
+              jobId: job.id,
             });
-            try {
-              await transport.sendMail({
-                from: {
-                  name: "こころの居場所",
-                  address: process.env.WEB_SMTP_USER!,
-                },
-                to: p.rows[0].email,
-                subject: "会員エリアに新しいお知らせがあります",
-                text: `会員エリアに新しいお知らせがあります。\n${origin}/member\n\n通知の停止は、ログイン後のAI占い相談画面から行えます。\nこのメールには返信できません。`,
-                messageId: `<${job.id}@ibasho-kokoro.vercel.app>`,
-              });
-              sent = true;
-            } finally {
-              transport.close();
-            }
+            sent = result.ok === true;
           }
         }
       }
@@ -319,7 +296,9 @@ export async function deliverWebNotifications() {
   }
 }
 
-export async function verifyNotificationConfiguration() {
+export async function verifyNotificationConfiguration(
+  emailAuthorization: string,
+) {
   const settings = pushConfiguration();
   if (settings.enabled) {
     const key = crypto.createECDH("prime256v1");
@@ -330,23 +309,8 @@ export async function verifyNotificationConfiguration() {
       throw new Error("VAPID_KEY_MISMATCH");
   }
   if (settings.emailEnabled) {
-    const transport = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      requireTLS: true,
-      auth: {
-        user: process.env.WEB_SMTP_USER,
-        pass: process.env.WEB_SMTP_PASSWORD,
-      },
-      connectionTimeout: 10000,
-      socketTimeout: 15000,
-    });
-    try {
-      await transport.verify();
-    } finally {
-      transport.close();
-    }
+    const result = await emailDelivery(emailAuthorization, { preflight: true });
+    if (result.smtpVerified !== 1) throw new Error("EMAIL_PREFLIGHT");
   }
   return {
     smtpVerified: Number(settings.emailEnabled),

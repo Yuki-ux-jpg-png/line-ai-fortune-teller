@@ -162,10 +162,12 @@ app.post("/web/operations", async (req, res) => {
       return;
     }
     await enqueueWebNotifications();
-    await deliverWebNotifications();
+    const emailAuthorization =
+      req.header("x-email-delivery-authorization") ?? "";
+    await deliverWebNotifications(emailAuthorization);
     const preflight =
       req.query.preflight === "1"
-        ? await verifyNotificationConfiguration()
+        ? await verifyNotificationConfiguration(emailAuthorization)
         : {};
     res.json({ ...(await webOperations()), ...preflight });
   } catch {
