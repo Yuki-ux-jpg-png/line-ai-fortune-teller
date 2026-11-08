@@ -1,4 +1,9 @@
 import crypto from "node:crypto";
+import {
+  prepareWebLink,
+  approveWebLink,
+  webCodePattern,
+} from "./web-identity.js";
 import type Stripe from "stripe";
 import { config } from "./config.js";
 import {
@@ -28,9 +33,17 @@ import {
   guidedFollowupMessage,
 } from "./line.js";
 import {
-  startIntake, getIntake, changeIntakeStage, setIntakeReview, addIntakeTurn,
-  finishIntake, cancelIntake, followUpQuestion, summarizeIntake,
-  transcribeLineVoice, urgentSafetyConcern,
+  startIntake,
+  getIntake,
+  changeIntakeStage,
+  setIntakeReview,
+  addIntakeTurn,
+  finishIntake,
+  cancelIntake,
+  followUpQuestion,
+  summarizeIntake,
+  transcribeLineVoice,
+  urgentSafetyConcern,
 } from "./intake.js";
 import { getOrCreateCheckoutUrl } from "./payments.js";
 import type {
@@ -60,14 +73,24 @@ async function handleFollow(event: LineFollowEvent): Promise<void> {
   await showTellers(event.replyToken);
 }
 
-async function showPreparedDraft(userId: string, replyToken: string, content: string): Promise<void> {
+async function showPreparedDraft(
+  userId: string,
+  replyToken: string,
+  content: string,
+): Promise<void> {
   const text = content.trim();
   if (!text) {
-    await replyMessage(replyToken, [textMessage("相談内容が空です。短い一言からで大丈夫です。")]);
+    await replyMessage(replyToken, [
+      textMessage("相談内容が空です。短い一言からで大丈夫です。"),
+    ]);
     return;
   }
   if (text.length > config.maxQuestionChars) {
-    await replyMessage(replyToken, [textMessage(`相談内容は${config.maxQuestionChars}文字以内で送ってください。現在は${text.length}文字です。`)]);
+    await replyMessage(replyToken, [
+      textMessage(
+        `相談内容は${config.maxQuestionChars}文字以内で送ってください。現在は${text.length}文字です。`,
+      ),
+    ]);
     return;
   }
   const draft = await saveDraft(userId, text);
@@ -77,31 +100,49 @@ async function showPreparedDraft(userId: string, replyToken: string, content: st
   }
   if (draft.type === "active") {
     await finishIntake(userId);
-    await replyMessage(replyToken, [textMessage("処理中の相談があるため、新しい相談はまだ作れません。")]);
+    await replyMessage(replyToken, [
+      textMessage("処理中の相談があるため、新しい相談はまだ作れません。"),
+    ]);
     return;
   }
   const reviewed = await setIntakeReview(userId, draft.consultationId);
   if (!reviewed) {
     // A late response after expiry must not leave a blocking draft behind.
     await cancelIntake(userId);
-    await replyMessage(replyToken, [textMessage("相談の準備時間が過ぎました。占い師を選び直してください。")]);
+    await replyMessage(replyToken, [
+      textMessage("相談の準備時間が過ぎました。占い師を選び直してください。"),
+    ]);
     return;
   }
-  await replyMessage(replyToken, [confirmConsultationMessage(draft.consultationId, text)]);
+  await replyMessage(replyToken, [
+    confirmConsultationMessage(draft.consultationId, text),
+  ]);
 }
 
-async function intakeMessage(userId: string, replyToken: string, text: string): Promise<void> {
+async function intakeMessage(
+  userId: string,
+  replyToken: string,
+  text: string,
+): Promise<void> {
   const session = await getIntake(userId);
   // No explicit preparation session: never hijack an ordinary LINE chat message.
   if (!session || !["text", "voice", "guided"].includes(session.stage)) return;
   if (!text.trim()) return;
   if (text.length > config.maxQuestionChars) {
-    await replyMessage(replyToken, [textMessage(`${config.maxQuestionChars}文字以内でお願いします。長い場合は内容を短く区切ってください。`)]);
+    await replyMessage(replyToken, [
+      textMessage(
+        `${config.maxQuestionChars}文字以内でお願いします。長い場合は内容を短く区切ってください。`,
+      ),
+    ]);
     return;
   }
   if (await urgentSafetyConcern(text)) {
     await cancelIntake(userId);
-    await replyMessage(replyToken, [textMessage("今、安全が心配な状態なら、占いの回答を待たずに地域の緊急窓口や身近な信頼できる方へ連絡してください。命に関わる危険があるときは緊急通報を利用してください。")]);
+    await replyMessage(replyToken, [
+      textMessage(
+        "今、安全が心配な状態なら、占いの回答を待たずに地域の緊急窓口や身近な信頼できる方へ連絡してください。命に関わる危険があるときは緊急通報を利用してください。",
+      ),
+    ]);
     return;
   }
   if (session.stage !== "guided") {
@@ -111,7 +152,11 @@ async function intakeMessage(userId: string, replyToken: string, text: string): 
   const latest = await addIntakeTurn(userId, text);
   if (!latest) return;
   if (latest.step >= 3) {
-    await showPreparedDraft(userId, replyToken, await summarizeIntake(latest.turns));
+    await showPreparedDraft(
+      userId,
+      replyToken,
+      await summarizeIntake(latest.turns),
+    );
   } else {
     const question = await followUpQuestion(latest.turns);
     await replyMessage(replyToken, [guidedFollowupMessage(question)]);
@@ -122,6 +167,38 @@ async function handleText(event: LineTextMessageEvent): Promise<void> {
   const userId = requireUserId(event);
   if (!userId) return;
   const text = event.message.text.trim();
+  if (
+    process.env.WEB_CONSULTATION_ENABLED === "true" &&
+    webCodePattern.test(text)
+  ) {
+    if (await prepareWebLink(text, userId))
+      await replyMessage(event.replyToken, [
+        {
+          type: "template",
+          altText: "Web会員との連携確認",
+          template: {
+            type: "confirm",
+            text: "この連携を承認すると、コードを発行したWeb会員から、このLINEの相談履歴・鑑定結果を閲覧でき、無料回数も共有されます。自分で発行したコードですか？",
+            actions: [
+              {
+                type: "postback",
+                label: "自分のWeb会員と連携",
+                data: new URLSearchParams({
+                  action: "confirm_web_link",
+                  code: text,
+                }).toString(),
+              },
+              { type: "message", label: "連携しない", text: "Web連携を中止" },
+            ],
+          },
+        },
+      ]);
+    else
+      await replyMessage(event.replyToken, [
+        textMessage("連携コードを確認してください。期限は10分です。"),
+      ]);
+    return;
+  }
   if (["メニュー", "占い師", "占い師を選ぶ"].includes(text)) {
     await ensureUser(userId);
     // Leaving for the menu ends the old preparation session.
@@ -132,14 +209,20 @@ async function handleText(event: LineTextMessageEvent): Promise<void> {
   if (["相談を終了", "相談中止", "相談終了"].includes(text)) {
     const stopped = await cancelIntake(userId);
     if (stopped) {
-      await replyMessage(event.replyToken, [textMessage("相談の準備を終了しました。下書きは破棄しました。通常のメッセージは相談として記録されません。")]);
+      await replyMessage(event.replyToken, [
+        textMessage(
+          "相談の準備を終了しました。下書きは破棄しました。通常のメッセージは相談として記録されません。",
+        ),
+      ]);
     }
     return;
   }
   if (text === "相談状況") {
     const user = await getUser(userId);
     if (user.state === "waiting_result") {
-      await replyMessage(event.replyToken, [textMessage("現在、鑑定結果を準備中です。相談の受付は完了しています。")]);
+      await replyMessage(event.replyToken, [
+        textMessage("現在、鑑定結果を準備中です。相談の受付は完了しています。"),
+      ]);
     } else if (user.state === "awaiting_payment") {
       const pending = await findAwaitingPayment(userId);
       if (pending) {
@@ -147,7 +230,9 @@ async function handleText(event: LineTextMessageEvent): Promise<void> {
         await replyMessage(event.replyToken, [paymentMessage(checkoutUrl)]);
       }
     } else {
-      await replyMessage(event.replyToken, [textMessage("現在、鑑定中の相談はありません。")]);
+      await replyMessage(event.replyToken, [
+        textMessage("現在、鑑定中の相談はありません。"),
+      ]);
     }
     return;
   }
@@ -160,20 +245,35 @@ async function handleAudio(event: LineAudioMessageEvent): Promise<void> {
   const session = await getIntake(userId);
   if (!session || !["voice", "guided"].includes(session.stage)) return;
   if (event.message.contentProvider?.type === "external") {
-    await replyMessage(event.replyToken, [textMessage("この音声は読み取れません。LINEの音声メッセージとして送ってください。")]);
+    await replyMessage(event.replyToken, [
+      textMessage(
+        "この音声は読み取れません。LINEの音声メッセージとして送ってください。",
+      ),
+    ]);
     return;
   }
   try {
-    const transcript = await transcribeLineVoice(event.message.id, event.message.duration);
+    const transcript = await transcribeLineVoice(
+      event.message.id,
+      event.message.duration,
+    );
     // A two-minute spoken account may exceed 500 characters; organize it
     // into a shorter draft instead of rejecting the voice message.
-    const text = transcript.length > config.maxQuestionChars && session.stage === "voice"
-      ? await summarizeIntake([transcript])
-      : transcript;
+    const text =
+      transcript.length > config.maxQuestionChars && session.stage === "voice"
+        ? await summarizeIntake([transcript])
+        : transcript;
     await intakeMessage(userId, event.replyToken, text);
   } catch (error) {
-    console.error("Consultation voice processing failed", error instanceof Error ? error.name : "unknown");
-    await replyMessage(event.replyToken, [textMessage("音声を処理できませんでした。2分以内で録り直すか、文字で送ってください。")]);
+    console.error(
+      "Consultation voice processing failed",
+      error instanceof Error ? error.name : "unknown",
+    );
+    await replyMessage(event.replyToken, [
+      textMessage(
+        "音声を処理できませんでした。2分以内で録り直すか、文字で送ってください。",
+      ),
+    ]);
   }
 }
 
@@ -184,6 +284,20 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
 
   const params = new URLSearchParams(event.postback.data);
   const action = params.get("action");
+  if (
+    action === "confirm_web_link" &&
+    process.env.WEB_CONSULTATION_ENABLED === "true"
+  ) {
+    const ok = await approveWebLink(params.get("code") ?? "", userId);
+    await replyMessage(event.replyToken, [
+      textMessage(
+        ok
+          ? "Web会員との連携を完了しました。Web画面で最新の状態を確認してください。"
+          : "連携できませんでした。コードの期限や、すでに連携済みでないか確認してください。",
+      ),
+    ]);
+    return;
+  }
 
   if (action === "select_teller") {
     const tellerId = params.get("teller_id");
@@ -196,7 +310,9 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
       return;
     }
     if (result === "not_found") {
-      await replyMessage(event.replyToken, [textMessage("占い師が見つかりません。")]);
+      await replyMessage(event.replyToken, [
+        textMessage("占い師が見つかりません。"),
+      ]);
       return;
     }
     await startIntake(userId);
@@ -207,7 +323,11 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
   if (action === "intake_cancel") {
     const stopped = await cancelIntake(userId);
     if (stopped) {
-      await replyMessage(event.replyToken, [textMessage("相談の準備を終了しました。下書きは破棄されました。通常のメッセージは相談として記録されません。")]);
+      await replyMessage(event.replyToken, [
+        textMessage(
+          "相談の準備を終了しました。下書きは破棄されました。通常のメッセージは相談として記録されません。",
+        ),
+      ]);
     }
     return;
   }
@@ -215,18 +335,31 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
   if (["intake_guided", "intake_voice", "intake_text"].includes(action ?? "")) {
     const current = await getIntake(userId);
     if (!current || current.stage !== "mode") return;
-    const mode = action === "intake_guided" ? "guided" : action === "intake_voice" ? "voice" : "text";
+    const mode =
+      action === "intake_guided"
+        ? "guided"
+        : action === "intake_voice"
+          ? "voice"
+          : "text";
     await changeIntakeStage(userId, mode, true);
-    await replyMessage(event.replyToken, [mode === "guided" ? guidedWelcomeMessage() : intakeInputMessage(mode)]);
+    await replyMessage(event.replyToken, [
+      mode === "guided" ? guidedWelcomeMessage() : intakeInputMessage(mode),
+    ]);
     return;
   }
 
   if (action === "intake_topic") {
     const current = await getIntake(userId);
     if (!current || current.stage !== "guided" || current.step !== 0) return;
-    const allowedTopics = ["恋愛のことで悩んでいます", "仕事のことで悩んでいます", "人間関係のことで悩んでいます", "今の気持ちを整理したいです"];
+    const allowedTopics = [
+      "恋愛のことで悩んでいます",
+      "仕事のことで悩んでいます",
+      "人間関係のことで悩んでいます",
+      "今の気持ちを整理したいです",
+    ];
     const topic = params.get("topic") ?? "";
-    if (allowedTopics.includes(topic)) await intakeMessage(userId, event.replyToken, topic);
+    if (allowedTopics.includes(topic))
+      await intakeMessage(userId, event.replyToken, topic);
     return;
   }
 
@@ -237,7 +370,11 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
       await replyMessage(event.replyToken, [guidedWelcomeMessage()]);
       return;
     }
-    await showPreparedDraft(userId, event.replyToken, await summarizeIntake(current.turns));
+    await showPreparedDraft(
+      userId,
+      event.replyToken,
+      await summarizeIntake(current.turns),
+    );
     return;
   }
 
@@ -255,7 +392,13 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
   if (action === "confirm_consultation") {
     const consultationId = params.get("consultation_id");
     const current = await getIntake(userId);
-    if (!consultationId || !current || current.stage !== "review" || current.draft_consultation_id !== consultationId) return;
+    if (
+      !consultationId ||
+      !current ||
+      current.stage !== "review" ||
+      current.draft_consultation_id !== consultationId
+    )
+      return;
     const result = await confirmConsultation(userId, consultationId);
 
     if (result.type === "accepted") {
@@ -274,7 +417,10 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
 
     if (result.type === "needs_payment") {
       await finishIntake(userId);
-      const checkoutUrl = await getOrCreateCheckoutUrl(result.consultationId, userId);
+      const checkoutUrl = await getOrCreateCheckoutUrl(
+        result.consultationId,
+        userId,
+      );
       await replyMessage(event.replyToken, [paymentMessage(checkoutUrl)]);
       return;
     }
@@ -346,7 +492,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
     event.data.object as Stripe.Checkout.Session,
   );
 
-  if (result.type === "completed") {
+  if (result.type === "completed" && result.deliveryChannel !== "web") {
     try {
       await pushMessage(
         result.lineUserId,

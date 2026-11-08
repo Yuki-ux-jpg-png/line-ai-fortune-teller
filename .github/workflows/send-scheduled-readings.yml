@@ -9,6 +9,10 @@ concurrency:
   group: send-scheduled-readings
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   worker:
     runs-on: ubuntu-latest
@@ -48,3 +52,6 @@ jobs:
           MAX_DAILY_CONSULTATIONS_PER_USER: "5"
           DAILY_AI_GENERATION_LIMIT: "200"
         run: npm run worker
+      - name: Deliver opted-in Web notifications and report operations
+        if: always() && !cancelled()
+        run: node scripts/run-web-operations.mjs
