@@ -1,5 +1,13 @@
 import express from "express";
 import { config } from "./config.js";
+import { webConsultationRouter } from "./web-consultations.js";
+import { verifyOperationsToken } from "./web-operations-auth.js";
+import {
+  enqueueWebNotifications,
+  deliverWebNotifications,
+  verifyNotificationConfiguration,
+} from "./web-notifications.js";
+import { webOperations } from "./web-operations.js";
 import { pool } from "./db.js";
 import { verifyLineSignature } from "./line.js";
 import { stripe } from "./payments.js";
@@ -136,6 +144,35 @@ app.post(
   },
 );
 
+// Authenticate before parsing uploads; no CORS or anonymous consultation endpoints.
+app.use("/web/member", webConsultationRouter);
+app.post("/web/operations", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    await verifyOperationsToken(
+      (req.header("authorization") ?? "").replace(/^Bearer /, ""),
+    );
+  } catch {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    if (process.env.WEB_CONSULTATION_ENABLED !== "true") {
+      res.json({ disabled: 1 });
+      return;
+    }
+    await enqueueWebNotifications();
+    await deliverWebNotifications();
+    const preflight =
+      req.query.preflight === "1"
+        ? await verifyNotificationConfiguration()
+        : {};
+    res.json({ ...(await webOperations()), ...preflight });
+  } catch {
+    console.error("web_operations_failed");
+    res.status(503).json({ error: "Operations require attention" });
+  }
+});
 app.use(express.json({ limit: "100kb" }));
 
 app.get("/health", async (_req, res) => {
@@ -149,10 +186,14 @@ app.get("/health", async (_req, res) => {
 });
 
 // Separate from web readiness: worker lag must not cause web restart loops.
-app.get("/health/worker", async (_req,res) => {
-  res.set("Cache-Control","no-store");
-  try { const health=await workerHealth(pool); res.status(health.ok?200:503).json(health); }
-  catch { res.status(503).json({ok:false,reason:"worker_health_unavailable"}); }
+app.get("/health/worker", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    const health = await workerHealth(pool);
+    res.status(health.ok ? 200 : 503).json(health);
+  } catch {
+    res.status(503).json({ ok: false, reason: "worker_health_unavailable" });
+  }
 });
 
 app.get("/payment/success", (_req, res) => {
