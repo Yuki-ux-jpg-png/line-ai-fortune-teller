@@ -24,4 +24,4 @@ jobs:
       - run: npm --prefix tw test
       - run: node --test test/regional-web.test.mjs
         env:
-          REGIONAL_WEB_TEST_tw: tw
+          REGIONAL_WEB_TEST_MARKET: tw
