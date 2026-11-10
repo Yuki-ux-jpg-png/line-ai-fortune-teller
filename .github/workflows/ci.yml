@@ -1,0 +1,28 @@
+name: Regional build and test
+on:
+  pull_request:
+    branches: [taiwan-line-bot, korean-line-bot]
+  push:
+    branches: [taiwan-line-bot, korean-line-bot]
+permissions:
+  contents: read
+concurrency:
+  group: regional-test-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --include=dev
+      - run: npm ci --prefix tw --include=dev
+      - run: node scripts/verify-regional-web-bundle.mjs
+      - run: npm --prefix tw test
+      - run: node --test test/regional-web.test.mjs
+        env:
+          REGIONAL_WEB_TEST_MARKET: tw
