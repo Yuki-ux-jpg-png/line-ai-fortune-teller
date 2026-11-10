@@ -84,40 +84,50 @@ REVOKE ALL ON web_notification_preferences,web_push_subscriptions,web_notificati
 
 ALTER TABLE consultation_processing_holds ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON consultation_processing_holds FROM PUBLIC,anon,authenticated;
-ALTER TABLE consultation_processing_holds OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON consultation_processing_holds TO line_kr_app;
+CREATE POLICY korean_server_access ON consultation_processing_holds TO line_kr_app USING(true) WITH CHECK(true);
 
 ALTER TABLE worker_health ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON worker_health FROM PUBLIC,anon,authenticated;
-ALTER TABLE worker_health OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON worker_health TO line_kr_app;
+CREATE POLICY korean_server_access ON worker_health TO line_kr_app USING(true) WITH CHECK(true);
 
 ALTER TABLE web_identities ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON web_identities FROM PUBLIC,anon,authenticated;
-ALTER TABLE web_identities OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON web_identities TO line_kr_app;
+CREATE POLICY korean_server_access ON web_identities TO line_kr_app USING(true) WITH CHECK(true);
 
 ALTER TABLE web_link_requests ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON web_link_requests FROM PUBLIC,anon,authenticated;
-ALTER TABLE web_link_requests OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON web_link_requests TO line_kr_app;
+CREATE POLICY korean_server_access ON web_link_requests TO line_kr_app USING(true) WITH CHECK(true);
 
 ALTER TABLE web_request_limits ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON web_request_limits FROM PUBLIC,anon,authenticated;
-ALTER TABLE web_request_limits OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON web_request_limits TO line_kr_app;
+CREATE POLICY korean_server_access ON web_request_limits TO line_kr_app USING(true) WITH CHECK(true);
 
 ALTER TABLE web_notices ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON web_notices FROM PUBLIC,anon,authenticated;
-ALTER TABLE web_notices OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON web_notices TO line_kr_app;
+CREATE POLICY korean_server_access ON web_notices TO line_kr_app USING(true) WITH CHECK(true);
 
 ALTER TABLE web_checkout_attempts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON web_checkout_attempts FROM PUBLIC,anon,authenticated;
-ALTER TABLE web_checkout_attempts OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON web_checkout_attempts TO line_kr_app;
+CREATE POLICY korean_server_access ON web_checkout_attempts TO line_kr_app USING(true) WITH CHECK(true);
 
 ALTER TABLE web_notification_preferences ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON web_notification_preferences FROM PUBLIC,anon,authenticated;
-ALTER TABLE web_notification_preferences OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON web_notification_preferences TO line_kr_app;
+CREATE POLICY korean_server_access ON web_notification_preferences TO line_kr_app USING(true) WITH CHECK(true);
 
 ALTER TABLE web_push_subscriptions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON web_push_subscriptions FROM PUBLIC,anon,authenticated;
-ALTER TABLE web_push_subscriptions OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON web_push_subscriptions TO line_kr_app;
+CREATE POLICY korean_server_access ON web_push_subscriptions TO line_kr_app USING(true) WITH CHECK(true);
 
 ALTER TABLE web_notification_outbox ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON web_notification_outbox FROM PUBLIC,anon,authenticated;
-ALTER TABLE web_notification_outbox OWNER TO line_kr_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON web_notification_outbox TO line_kr_app;
+CREATE POLICY korean_server_access ON web_notification_outbox TO line_kr_app USING(true) WITH CHECK(true);

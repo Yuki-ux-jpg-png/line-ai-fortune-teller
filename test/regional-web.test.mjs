@@ -10,7 +10,7 @@ globalThis.fetch=async()=>{throw new Error('External HTTP is forbidden');};
 const id='11111111-1111-4111-8111-111111111111', other='22222222-2222-4222-8222-222222222222';
 const member={id,email:'a@example.test',access:true,staff:false};
 const ai={urgentSafetyConcern:async()=>false,followUpQuestion:async()=>'',summarizeIntake:async()=>''};
-for(const market of ['tw','kr']) {
+for(const market of (process.env.REGIONAL_WEB_TEST_MARKET ? [process.env.REGIONAL_WEB_TEST_MARKET].filter(m=>['tw','kr'].includes(m)) : ['tw','kr'])) {
  const root=new URL(`../${market}/`,import.meta.url), compiled=new URL('dist/src/',root);
  const {pool}=await import(new URL('db.js',compiled));
  const {webAction,webSnapshot}=await import(new URL('web-consultations.js',compiled));

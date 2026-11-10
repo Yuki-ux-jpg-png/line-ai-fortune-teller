@@ -1,11 +1,9 @@
-import { cleanupExpiredIntakes } from "./intake.js";
 import { generateReading } from "./ai.js";
 import { config } from "./config.js";
 import {
   claimDeliveryJob,
   claimGenerationJob,
   countTodayGenerations,
-  holdAmbiguousDeliveries,
   markDelivered,
   markDeliveryFailed,
   markGenerationFailed,
@@ -14,10 +12,6 @@ import {
 } from "./consultations.js";
 import { pool } from "./db.js";
 import { pushMessage, textMessage } from "./line.js";
-import { assertWorkerSchema } from "./worker-schema.js";
-
-import { recordWorkerRun } from "./worker-health.js";
-import { reconcileWebPayments, webOperations } from "./web-operations.js";
 
 const LINE_TEXT_CHUNK_MAX_CHARS = 4_800;
 const MAX_READING_CHUNKS = 3;
@@ -60,16 +54,16 @@ function splitReadingForLine(text: string): string[] {
 
     for (let i = searchHigh - 1; i >= searchLow - 1; i -= 1) {
       const char = chars[offset + i];
-      if (char !== undefined && ["。", "！", "？", "\n"].includes(char)) {
+      if (
+        char !== undefined &&
+        ["。", "！", "？", "\n"].includes(char)
+      ) {
         take = i + 1;
         break;
       }
     }
 
-    const chunk = chars
-      .slice(offset, offset + take)
-      .join("")
-      .trim();
+    const chunk = chars.slice(offset, offset + take).join("").trim();
     if (chunk) chunks.push(chunk);
     offset += take;
   }
@@ -97,7 +91,7 @@ async function logOpenConsultations(label: string): Promise<void> {
       deliver_at,
       generation_attempts,
       send_attempts,
-      (SELECT reason FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id) AS hold_reason
+      last_error
     FROM consultations
     WHERE status IN (
       'draft',
@@ -151,19 +145,13 @@ async function processDeliveries(): Promise<void> {
     if (!job) break;
 
     try {
-      if (job.delivery_channel === "web") {
-        await markDelivered(job);
-        continue;
-      }
       const readingChunks = splitReadingForLine(job.answer);
       if (readingChunks.length === 0) {
         throw new Error("送信する鑑定結果が空です");
       }
 
       const messages = [
-        textMessage(
-          "お待たせしました。貴重なお時間割いてご相談いただきありがとうございます。では、回答しますね",
-        ),
+        textMessage("お待たせしました。貴重なお時間割いてご相談いただきありがとうございます。では、回答しますね"),
         ...readingChunks.map((chunk) => textMessage(chunk)),
         textMessage(
           "今回の相談はこれで完了です。次の相談は新しい無料枠または相談チケットを使用します。",
@@ -171,9 +159,7 @@ async function processDeliveries(): Promise<void> {
       ];
 
       if (messages.length > 5) {
-        throw new Error(
-          `LINE送信メッセージ数が上限を超えています: ${messages.length}`,
-        );
+        throw new Error(`LINE送信メッセージ数が上限を超えています: ${messages.length}`);
       }
 
       await pushMessage(job.line_user_id, messages, job.line_retry_key);
@@ -187,55 +173,16 @@ async function processDeliveries(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  // Fail before cleanup, job claims, AI generation, or message delivery when
-  // this worker version is ahead of the database schema.
-  await assertWorkerSchema(pool);
-  const lease = await pool.connect();
-  let lock;
-  try {
-    lock = await lease.query(
-      "SELECT pg_try_advisory_lock(714902,1) AS acquired",
-    );
-  } catch (error) {
-    lease.release();
-    throw error;
-  }
-  if (!lock.rows[0]?.acquired) {
-    lease.release();
-    console.log("Another JP worker is active");
-    return;
-  }
-  try {
-    await recordWorkerRun(pool, "started");
-    await cleanupExpiredIntakes();
-    const heldDeliveries = await holdAmbiguousDeliveries();
-    if (heldDeliveries)
-      console.warn("Deliveries held for individual review", {
-        count: heldDeliveries,
-      });
-    await recoverStaleJobs();
+  await recoverStaleJobs();
 
-    // 一時診断: 個人情報や相談内容は出さず、処理中状態だけ確認する。
-    await logOpenConsultations("before");
+  // 一時診断: 個人情報や相談内容は出さず、処理中状態だけ確認する。
+  await logOpenConsultations("before");
 
-    await processGenerations();
-    await processDeliveries();
-    await reconcileWebPayments();
-    await webOperations();
+  await processGenerations();
+  await processDeliveries();
 
-    // Worker実行後に状態がどう変わったかも確認する。
-    await logOpenConsultations("after");
-    await recordWorkerRun(pool, "succeeded");
-  } catch (error) {
-    await recordWorkerRun(pool, "failed");
-    throw error;
-  } finally {
-    try {
-      await lease.query("SELECT pg_advisory_unlock(714902,1)");
-    } finally {
-      lease.release();
-    }
-  }
+  // Worker実行後に状態がどう変わったかも確認する。
+  await logOpenConsultations("after");
 }
 
 main()

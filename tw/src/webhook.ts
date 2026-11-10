@@ -1,4 +1,3 @@
-import {handleWebLineLink} from "./web-line-link.js";
 import crypto from "node:crypto";
 import type Stripe from "stripe";
 import { config } from "./config.js";
@@ -211,7 +210,6 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
 }
 
 export async function handleLineEvent(event: LineEvent): Promise<void> {
-  if (await handleWebLineLink(event)) return;
   const eventId = event.webhookEventId;
   if (!eventId) return;
   if (!(await claimLineEvent(eventId))) return;
@@ -253,7 +251,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
     event.data.object as Stripe.Checkout.Session,
   );
 
-  if (result.type === "completed" && result.deliveryChannel !== "web") {
+  if (result.type === "completed") {
     try {
       await pushMessage(
         result.lineUserId,
