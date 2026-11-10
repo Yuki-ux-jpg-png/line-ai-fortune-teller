@@ -1,6 +1,7 @@
+import {webServiceOrigin} from "./web-market.js";
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 export const operationsAudience =
-  "https://line-fortune-bot-zs2z.onrender.com/web/operations";
+  webServiceOrigin+"/web/operations";
 const issuer = "https://token.actions.githubusercontent.com";
 const keys = createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks`), {
   timeoutDuration: 5000,

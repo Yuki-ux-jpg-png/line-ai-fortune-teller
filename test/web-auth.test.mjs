@@ -1,10 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { authenticateWebMember } from "../dist/web-auth.js";
-import {
-  verifyOperationsToken,
-  operationsAudience,
-} from "../dist/web-operations-auth.js";
+import { useTestEnvironment } from "./helpers/database.mjs";
+useTestEnvironment();
+const { authenticateWebMember } = await import("../dist/web-auth.js");
+const { verifyOperationsToken, operationsAudience } = await import("../dist/web-operations-auth.js");
 import { generateKeyPair, SignJWT } from "jose";
 Object.assign(process.env, {
   WEB_CONSULTATION_ENABLED: "true",

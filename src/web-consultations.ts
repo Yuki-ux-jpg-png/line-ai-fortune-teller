@@ -1,3 +1,5 @@
+import {webText} from "./web-locale.js";
+import { webAmount, webCurrency, webPaymentsAvailable } from "./web-market.js";
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { query, withTransaction } from "./db.js";
@@ -19,7 +21,7 @@ import {
   urgentSafetyConcern,
   followUpQuestion,
   summarizeIntake,
-} from "./intake.js";
+} from "./web-intake.js";
 import { stripe } from "./payments.js";
 import { transcribeWebAudio } from "./web-voice.js";
 import { safetyMessage } from "./web-safety.js";
@@ -183,8 +185,9 @@ export async function webAction(
         member.id,
         typeof p.before === "string" ? p.before : undefined,
       )),
-      price: config.consultationPriceJpy,
-      currency: "jpy",
+      price: webAmount,
+      currency: webCurrency,
+      paymentsAvailable: webPaymentsAvailable,
       freeLimit: config.freeConsultationLimit,
       maxChars: config.maxQuestionChars,
       tellers: (await listTellers()).map((t) => ({
@@ -245,6 +248,7 @@ export async function webAction(
   if (!own.rowCount) throw new WebError(404, "この相談は操作できません。");
   if (action === "confirm") return confirmConsultation(canonical, p.id);
   if (action === "payment") {
+    if (!webPaymentsAvailable) throw new WebError(503, "有料相談は準備中です。課金は発生していません。");
     await syncWebPayment(canonical, p.id);
     const row = await query(
       "SELECT status FROM consultations WHERE id=$1 AND line_user_id=$2",
@@ -287,7 +291,7 @@ function webError(res: Response, e: unknown) {
   else {
     console.error("web_consultation_failed");
     res.status(503).json({
-      error: "処理を完了できませんでした。時間をおいて確認してください。",
+      error: webText("処理を完了できませんでした。時間をおいて確認してください。"),
     });
   }
 }
@@ -345,8 +349,8 @@ router.use(
       .json({
         error:
           status === 413
-            ? "入力が大きすぎます。"
-            : "入力形式を確認してください。",
+            ? webText("入力が大きすぎます。")
+            : webText("入力形式を確認してください。"),
       });
   },
 );

@@ -1,6 +1,6 @@
 // Short-lived, audience-bound GitHub identity. Never print tokens or provider responses.
 import { appendFile } from "node:fs/promises";
-const audience = "https://line-fortune-bot-zs2z.onrender.com/web/operations";
+const services = {jp:"https://line-fortune-bot-zs2z.onrender.com",tw:"https://line-fortune-bot-tw.onrender.com",kr:"https://line-fortune-bot-kr.onrender.com"};
 const mailAudience =
   "https://ibasho-kokoro.vercel.app/api/member/notification-email";
 async function identityFor(aud) {
@@ -19,42 +19,35 @@ async function identityFor(aud) {
   if (typeof value !== "string") throw new Error("OIDC_EMPTY");
   return value;
 }
+let failures = 0;
+for (const [market, origin] of Object.entries(services)) {
 try {
-  const [value, mailValue] = await Promise.all([
-    identityFor(audience),
-    identityFor(mailAudience),
-  ]);
-  const r = await fetch(
-    audience +
-      (process.env.GITHUB_EVENT_NAME === "workflow_dispatch"
-        ? "?preflight=1"
-        : ""),
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${value}`,
-        "x-email-delivery-authorization": `Bearer ${mailValue}`,
-      },
-      signal: AbortSignal.timeout(90000),
-      redirect: "error",
-    },
-  );
-  if (!r.ok) {
-    console.error("Web operations HTTP status", r.status);
-    throw new Error("OPERATIONS_UNAVAILABLE");
+  if (market !== "jp") {
+    const health = await fetch(origin+"/health", {signal:AbortSignal.timeout(20000),redirect:"error"});
+    if (!health.ok) throw new Error("HEALTH_UNAVAILABLE");
+    const state = await health.json();
+    if (state.webReady !== true) {
+      console.log("Web operations rollout pending", market);
+      continue;
+    }
   }
+  const audience = origin+"/web/operations";
+  const [value, mailValue] = await Promise.all([identityFor(audience),identityFor(mailAudience)]);
+  const r = await fetch(audience+(process.env.GITHUB_EVENT_NAME === "workflow_dispatch" ? "?preflight=1" : ""), {
+    method:"POST",
+    headers:{Authorization:`Bearer ${value}`,"x-email-delivery-authorization":`Bearer ${mailValue}`},
+    signal:AbortSignal.timeout(90000),redirect:"error",
+  });
+  if (!r.ok) {console.error("Web operations HTTP status",market,r.status);throw new Error("OPERATIONS_UNAVAILABLE");}
   const result = await r.json();
-  console.log("Web operations completed", result);
-  if (process.env.GITHUB_STEP_SUMMARY)
-    await appendFile(
-      process.env.GITHUB_STEP_SUMMARY,
-      `## 相談運営レポート\n\n${Object.entries(result)
-        .map(([k, v]) => `- ${k}: ${Number(v)}`)
-        .join("\n")}\n`,
-    );
+  // Only numeric operational aggregates may leave the service.
+  const counts = Object.fromEntries(Object.entries(result).filter(([,v])=>typeof v === "number" && Number.isFinite(v)));
+  console.log("Web operations completed",market,counts);
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY,
+    `## 相談運営レポート (${market})\n\n${Object.entries(counts).map(([k,v])=>`- ${k}: ${v}`).join("\n")}\n`);
 } catch {
-  console.error(
-    "Web operations failed. Check service health and notification backlog.",
-  );
-  process.exitCode = 1;
+  console.error("Web operations failed. Check service health and notification backlog.",market);
+  failures++;
 }
+}
+if (failures) process.exitCode = 1;

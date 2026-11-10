@@ -1,10 +1,12 @@
+import {webText} from "./web-locale.js";
+import { webMarket, webConsultationsAvailable } from "./web-market.js";
 /** Fixed trusted Auth origin; never trust browser-supplied user IDs or JWT claims. */
 export class WebError extends Error {
   constructor(
     public status: number,
     message: string,
   ) {
-    super(message);
+    super(webText(message));
   }
 }
 export type WebMember = {
@@ -17,7 +19,7 @@ export async function authenticateWebMember(
   authorization: string | undefined,
   fetcher: typeof fetch = fetch,
 ): Promise<WebMember> {
-  if (process.env.WEB_CONSULTATION_ENABLED !== "true")
+  if (process.env.WEB_CONSULTATION_ENABLED !== "true" || !webConsultationsAvailable)
     throw new WebError(503, "Web相談は準備中です。");
   const origin = process.env.WEB_MEMBER_SUPABASE_URL;
   const key = process.env.WEB_MEMBER_PUBLISHABLE_KEY;
@@ -73,8 +75,8 @@ export async function authenticateWebMember(
     state.profile.deletionRequested
   )
     throw new WebError(403, "現在は相談を利用できません。");
-  if (state.profile.market !== "jp")
-    throw new WebError(403, "Web相談は現在、日本向けから順に提供しています。");
+  if (state.profile.market !== webMarket)
+    throw new WebError(403, "登録した地域の相談窓口を利用してください。");
   return {
     id: user.id,
     access: state.access === true,
