@@ -21,6 +21,7 @@ jobs:
           cache: npm
       - run: npm ci --include=dev
       - run: npm ci --prefix tw --include=dev
+      - run: node scripts/verify-regional-web-bundle.mjs
       - run: npm --prefix tw test
       - run: node --test test/regional-web.test.mjs
         env:
