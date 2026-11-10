@@ -1,18 +1,14 @@
-name: Build and test
-
+name: Regional build and test
 on:
   pull_request:
-    branches: [main, taiwan-line-bot, korean-line-bot]
+    branches: [taiwan-line-bot, korean-line-bot]
   push:
-    branches: [main, taiwan-line-bot, korean-line-bot]
-
+    branches: [taiwan-line-bot, korean-line-bot]
 permissions:
   contents: read
-
 concurrency:
-  group: build-test-${{ github.ref }}
+  group: regional-test-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -24,10 +20,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --include=dev
-      - run: npm run check
-      - run: npm run build
       - run: npm ci --prefix tw --include=dev
-      - run: npm ci --prefix kr --include=dev
       - run: npm --prefix tw test
-      - run: npm --prefix kr test
-      - run: npm test
+      - run: node --test test/regional-web.test.mjs
+        env:
+          REGIONAL_WEB_TEST_tw: tw

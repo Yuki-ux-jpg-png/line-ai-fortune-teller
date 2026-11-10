@@ -15,14 +15,6 @@ export type LineTextMessageEvent = {
   };
 };
 
-export type LineAudioMessageEvent = {
-  type: "message";
-  webhookEventId: string;
-  replyToken: string;
-  source: LineSource;
-  message: { id: string; type: "audio"; duration?: number; contentProvider?: { type: string } };
-};
-
 export type LinePostbackEvent = {
   type: "postback";
   webhookEventId: string;
@@ -42,7 +34,6 @@ export type LineFollowEvent = {
 
 export type LineEvent =
   | LineTextMessageEvent
-  | LineAudioMessageEvent
   | LinePostbackEvent
   | LineFollowEvent
   | {

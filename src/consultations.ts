@@ -86,10 +86,6 @@ export async function selectTeller(
       [tellerId],
     );
     if (!teller.rowCount) return "not_found";
-    await client.query(
-      "SELECT line_user_id FROM users WHERE line_user_id=$1 FOR UPDATE",
-      [lineUserId],
-    );
 
     const active = await client.query<{ status: string }>(
       `SELECT status
@@ -99,7 +95,6 @@ export async function selectTeller(
             'awaiting_payment', 'queued_generation', 'generating',
             'scheduled', 'sending'
           )
-          OR (line_user_id=$1 AND status='draft' AND delivery_channel='web')
         LIMIT 1
         FOR UPDATE`,
       [lineUserId],
@@ -142,7 +137,7 @@ export async function saveDraft(
     if (!user?.selected_teller_id) return { type: "no_teller" };
 
     const active = await client.query<{ id: string; status: string }>(
-      `SELECT id, status, delivery_channel
+      `SELECT id, status
          FROM consultations
         WHERE line_user_id = $1
           AND status IN (
@@ -156,11 +151,7 @@ export async function saveDraft(
     );
 
     const existing = active.rows[0];
-    if (
-      existing &&
-      (existing.status !== "draft" ||
-        (existing as { delivery_channel?: string }).delivery_channel === "web")
-    ) {
+    if (existing && existing.status !== "draft") {
       return { type: "active", status: existing.status };
     }
 
@@ -274,9 +265,7 @@ export async function confirmConsultation(
         )
           AND confirmed_at >= date_trunc('day', now())`,
     );
-    if (
-      Number(systemDaily.rows[0]?.count ?? 0) >= config.dailyAiGenerationLimit
-    ) {
+    if (Number(systemDaily.rows[0]?.count ?? 0) >= config.dailyAiGenerationLimit) {
       return { type: "system_limit" };
     }
 
@@ -287,9 +276,7 @@ export async function confirmConsultation(
           AND confirmed_at >= now() - interval '24 hours'`,
       [lineUserId],
     );
-    if (
-      Number(daily.rows[0]?.count ?? 0) >= config.maxDailyConsultationsPerUser
-    ) {
+    if (Number(daily.rows[0]?.count ?? 0) >= config.maxDailyConsultationsPerUser) {
       return { type: "daily_limit" };
     }
 
@@ -363,7 +350,7 @@ export async function resetDraft(
   await withTransaction(async (client) => {
     await client.query(
       `DELETE FROM consultations
-        WHERE id = $1 AND line_user_id = $2 AND status = 'draft' AND delivery_channel='line'`,
+        WHERE id = $1 AND line_user_id = $2 AND status = 'draft'`,
       [consultationId, lineUserId],
     );
     await client.query(
@@ -406,7 +393,7 @@ export async function releaseLineEvent(webhookEventId: string): Promise<void> {
 }
 
 export type StripeCompletionResult =
-  | { type: "completed"; lineUserId: string; deliveryChannel: string }
+  | { type: "completed"; lineUserId: string }
   | { type: "duplicate" }
   | { type: "ignored" };
 
@@ -428,9 +415,7 @@ export async function completeStripeCheckout(
     const consultationId = session.metadata?.consultation_id;
     const lineUserId = session.metadata?.line_user_id;
     if (!consultationId || !lineUserId) {
-      throw new Error(
-        "Stripe metadataに相談IDまたはLINEユーザーIDがありません",
-      );
+      throw new Error("Stripe metadataに相談IDまたはLINEユーザーIDがありません");
     }
     if (
       session.metadata?.product_type !== "fortune_consultation_credit" ||
@@ -441,7 +426,7 @@ export async function completeStripeCheckout(
     }
 
     const consultationResult = await client.query<{ status: string }>(
-      `SELECT status, delivery_channel
+      `SELECT status
          FROM consultations
         WHERE id = $1 AND line_user_id = $2
         FOR UPDATE`,
@@ -454,9 +439,7 @@ export async function completeStripeCheckout(
     }
 
     const paymentIntentId =
-      typeof session.payment_intent === "string"
-        ? session.payment_intent
-        : null;
+      typeof session.payment_intent === "string" ? session.payment_intent : null;
 
     const paymentResult = await client.query<{ id: string }>(
       `INSERT INTO payments (
@@ -502,13 +485,7 @@ export async function completeStripeCheckout(
       [lineUserId],
     );
 
-    return {
-      type: "completed",
-      lineUserId,
-      deliveryChannel:
-        (consultation as { status: string; delivery_channel?: string })
-          .delivery_channel ?? "line",
-    };
+    return { type: "completed", lineUserId };
   });
 }
 
@@ -562,17 +539,6 @@ export type GenerationJob = {
   generation_attempts: number;
 };
 
-export async function holdAmbiguousDeliveries(): Promise<number> {
-  const result = await query(
-    `INSERT INTO consultation_processing_holds(consultation_id,reason)
-     SELECT id,'line_retry_window_expired' FROM consultations
-     WHERE status IN ('scheduled','sending') AND send_attempts > 0
-       AND first_send_attempt_at < now() - interval '23 hours'
-     ON CONFLICT DO NOTHING`,
-  );
-  return result.rowCount ?? 0;
-}
-
 export async function recoverStaleJobs(): Promise<void> {
   await query(
     `UPDATE consultations
@@ -604,7 +570,6 @@ export async function claimGenerationJob(): Promise<GenerationJob | null> {
          FROM consultations
         WHERE status = 'queued_generation'
           AND generation_attempts < 3
-          AND NOT EXISTS (SELECT 1 FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id)
         ORDER BY created_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED`,
@@ -707,12 +672,7 @@ export async function markGenerationFailed(
         WHERE id = $1`,
       [job.id, message.slice(0, 2000)],
     );
-    await releaseEntitlement(
-      client,
-      job.id,
-      job.line_user_id,
-      row.entitlement_type,
-    );
+    await releaseEntitlement(client, job.id, job.line_user_id, row.entitlement_type);
     await client.query(
       `UPDATE users SET state = 'awaiting_question', updated_at = now()
         WHERE line_user_id = $1`,
@@ -727,7 +687,6 @@ export type DeliveryJob = {
   answer: string;
   line_retry_key: string;
   send_attempts: number;
-  delivery_channel: string;
 };
 
 export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
@@ -738,7 +697,6 @@ export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
         WHERE status = 'scheduled'
           AND deliver_at <= now()
           AND send_attempts < 5
-          AND NOT EXISTS (SELECT 1 FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id)
         ORDER BY deliver_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED`,
@@ -749,13 +707,12 @@ export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
     const result = await client.query<DeliveryJob>(
       `UPDATE consultations
           SET status = 'sending',
-              first_send_attempt_at = COALESCE(first_send_attempt_at,now()),
               send_attempts = send_attempts + 1,
               locked_at = now(),
               updated_at = now()
         WHERE id = $1
         RETURNING id, line_user_id, answer, line_retry_key::text,
-                  send_attempts, delivery_channel`,
+                  send_attempts`,
       [id],
     );
     return result.rows[0] ?? null;
@@ -764,19 +721,13 @@ export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
 
 export async function markDelivered(job: DeliveryJob): Promise<void> {
   await withTransaction(async (client) => {
-    const updated = await client.query(
+    await client.query(
       `UPDATE consultations
           SET status = 'sent', sent_at = now(), locked_at = NULL,
               last_error = NULL, updated_at = now()
-        WHERE id = $1 AND status = 'sending' RETURNING id`,
+        WHERE id = $1 AND status = 'sending'`,
       [job.id],
     );
-    if (!updated.rowCount) return;
-    if (job.delivery_channel === "web")
-      await client.query(
-        `INSERT INTO web_notices(consultation_id,kind) VALUES($1,'ready') ON CONFLICT DO NOTHING`,
-        [job.id],
-      );
     await client.query(
       `UPDATE consultation_credits
           SET status = 'consumed', consumed_at = now()
@@ -828,12 +779,7 @@ export async function markDeliveryFailed(
         WHERE id = $1`,
       [job.id, message.slice(0, 2000)],
     );
-    await releaseEntitlement(
-      client,
-      job.id,
-      job.line_user_id,
-      row.entitlement_type,
-    );
+    await releaseEntitlement(client, job.id, job.line_user_id, row.entitlement_type);
     await client.query(
       `UPDATE users SET state = 'awaiting_question', updated_at = now()
         WHERE line_user_id = $1`,
