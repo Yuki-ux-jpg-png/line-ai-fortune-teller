@@ -1,3 +1,4 @@
+import {handleWebLineLink} from "./web-line-link.js";
 import crypto from "node:crypto";
 import type Stripe from "stripe";
 import { config } from "./config.js";
@@ -230,6 +231,7 @@ async function handlePostback(event: LinePostbackEvent): Promise<void> {
 }
 
 export async function handleLineEvent(event: LineEvent): Promise<void> {
+  if (await handleWebLineLink(event)) return;
   if (!config.consultationsEnabled) {
     if (event.replyToken) await replyMessage(event.replyToken, [textMessage("점술가 상담은 준비 중입니다. ‘오늘의 운세’라고 입력하면 일일 운세를 확인할 수 있어요.")]);
     return;
@@ -275,7 +277,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
     event.data.object as Stripe.Checkout.Session,
   );
 
-  if (result.type === "completed") {
+  if (result.type === "completed" && result.deliveryChannel !== "web") {
     try {
       await pushMessage(
         result.lineUserId,
