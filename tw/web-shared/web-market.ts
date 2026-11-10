@@ -1,0 +1,10 @@
+import { config } from "./config.js";
+const settings = config as typeof config & { databaseSchema?: string; consultationPriceKrw?: number; consultationPriceJpy?: number; paymentsEnabled?: boolean; consultationsEnabled?: boolean };
+export const webMarket: "jp"|"tw"|"kr" = settings.databaseSchema === "line_tw" ? "tw" : settings.databaseSchema === "line_kr" ? "kr" : "jp";
+export const webLocale = {jp:"ja-JP",tw:"zh-TW",kr:"ko-KR"}[webMarket];
+export const webAudioLanguage = {jp:"ja",tw:"zh",kr:"ko"}[webMarket];
+export const webCurrency = webMarket === "kr" ? "krw" : "jpy";
+export const webAmount = webMarket === "kr" ? settings.consultationPriceKrw ?? 0 : settings.consultationPriceJpy ?? 500;
+export const webPaymentsAvailable = webMarket !== "kr" || (settings.paymentsEnabled === true && webAmount > 0);
+export const webConsultationsAvailable = webMarket !== "kr" || settings.consultationsEnabled === true;
+export const webServiceOrigin = {jp:"https://line-fortune-bot-zs2z.onrender.com",tw:"https://line-fortune-bot-tw.onrender.com",kr:"https://line-fortune-bot-kr.onrender.com"}[webMarket];

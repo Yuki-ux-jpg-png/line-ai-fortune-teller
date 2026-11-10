@@ -28,6 +28,7 @@ jobs:
       - run: npm run build
       - run: npm ci --prefix tw --include=dev
       - run: npm ci --prefix kr --include=dev
+      - run: node scripts/verify-regional-web-bundle.mjs
       - run: npm --prefix tw test
       - run: npm --prefix kr test
       - run: npm test
