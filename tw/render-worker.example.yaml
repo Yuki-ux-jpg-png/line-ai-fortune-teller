@@ -1,0 +1,36 @@
+# Optional scheduled worker. Creating this incurs Render cron charges.
+# Do not apply until the user approves pricing and credential scope.
+services:
+  - type: cron
+    name: line-fortune-worker-tw
+    runtime: node
+    branch: taiwan-line-bot
+    rootDir: tw
+    region: singapore
+    plan: starter
+    schedule: "*/5 * * * *"
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run worker
+    envVars:
+      - key: TZ
+        value: Asia/Taipei
+      - key: LINE_TW_CHANNEL_SECRET
+        sync: false
+      - key: LINE_TW_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: SUPABASE_URL
+        value: https://fffliyqwsbbbqgibezgw.supabase.co
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: TW_DATABASE_URL
+        sync: false
+      - key: TW_OPENAI_API_KEY
+        sync: false
+      - key: TW_OPENAI_MODEL
+        sync: false
+      - key: TW_STRIPE_SECRET_KEY
+        sync: false
+      - key: TW_STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: TW_APP_BASE_URL
+        sync: false

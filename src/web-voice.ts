@@ -1,6 +1,7 @@
+import { webAudioLanguage } from "./web-market.js";
 import OpenAI, { toFile } from "openai";
 import { config } from "./config.js";
-import { urgentSafetyConcern, summarizeIntake } from "./intake.js";
+import { urgentSafetyConcern, summarizeIntake } from "./web-intake.js";
 import { WebError } from "./web-auth.js";
 import { safetyMessage } from "./web-safety.js";
 export function webAudioFormat(
@@ -41,7 +42,7 @@ async function transcribe(bytes: Buffer, f: { ext: string; mime: string }) {
     model: "whisper-1",
     file: await toFile(bytes, `consultation.${f.ext}`, { type: f.mime }),
     response_format: "verbose_json",
-    language: "ja",
+    language: webAudioLanguage,
   });
 }
 export async function transcribeWebAudio(

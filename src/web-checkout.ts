@@ -1,9 +1,12 @@
+import {webText} from "./web-locale.js";
+import {webAmount,webCurrency,webPaymentsAvailable,webLocale} from "./web-market.js";
 import {query,withTransaction} from './db.js';
 import {stripe} from './payments.js';
 import {config} from './config.js';
 import {completeStripeCheckout} from './consultations.js';
 import {WebError} from './web-auth.js';
 export async function webCheckout(consultationId:string,canonical:string,provider=stripe) {
+  if (!webPaymentsAvailable) throw new WebError(503,"有料相談は準備中です。課金は発生していません。");
   // Commit the attempt BEFORE contacting Stripe. A lost response keeps the same key.
   const attempt=await withTransaction(async c=>{
     const owned=await c.query(`SELECT id,status FROM consultations WHERE id=$1 AND line_user_id=$2 AND delivery_channel='web'
@@ -22,13 +25,13 @@ export async function webCheckout(consultationId:string,canonical:string,provide
       throw new WebError(409,'以前のお支払い手続きの確認が必要です。重ねて支払わず運営へご相談ください。');
     const origin=process.env.WEB_MEMBER_APP_ORIGIN;
     if(origin!=='https://ibasho-kokoro.vercel.app')throw new WebError(503,'支払い先の接続を確認中です。');
-    session=await provider.checkout.sessions.create({mode:'payment',payment_method_types:['card'],
-      line_items:[{price_data:{currency:'jpy',unit_amount:config.consultationPriceJpy,product_data:{name:'AI占い相談 1件',description:'相談文1通とAI鑑定結果1通'}},quantity:1}],
+    session=await provider.checkout.sessions.create({mode:'payment',locale: webLocale === 'ja-JP' ? 'ja' : webLocale === 'ko-KR' ? 'ko' : 'zh-TW',payment_method_types:['card'],
+      line_items:[{price_data:{currency:webCurrency,unit_amount:webAmount,product_data:{name:webText('AI占い相談 1件'),description:webText('相談文1通とAI鑑定結果1通')}},quantity:1}],
       client_reference_id:canonical,metadata:{consultation_id:consultationId,line_user_id:canonical,product_type:'fortune_consultation_credit',web_attempt_id:attempt.id},
       success_url:`${origin}/member?consultation=${consultationId}`,cancel_url:`${origin}/member?consultation=${consultationId}`,expires_at:Math.floor(new Date(attempt.created_at).getTime()/1000)+30*60,
     },{idempotencyKey:`web-consultation:${consultationId}:${attempt.id}`});
   }
-  if(session.mode!=='payment'||session.metadata?.web_attempt_id!==attempt.id||session.metadata?.consultation_id!==consultationId||session.metadata?.line_user_id!==canonical||session.currency!=='jpy'||session.amount_total!==config.consultationPriceJpy)
+  if(session.mode!=='payment'||session.metadata?.web_attempt_id!==attempt.id||session.metadata?.consultation_id!==consultationId||session.metadata?.line_user_id!==canonical||session.currency!==webCurrency||session.amount_total!==webAmount)
     throw new WebError(409,'決済情報の照合が必要です。重ねて支払わず運営へご相談ください。');
   await withTransaction(async c=>{
     await c.query('SELECT id FROM consultations WHERE id=$1 FOR UPDATE',[consultationId]);

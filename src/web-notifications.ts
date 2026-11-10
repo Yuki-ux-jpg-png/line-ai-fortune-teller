@@ -1,3 +1,4 @@
+import { webMarket } from "./web-market.js";
 import crypto from "node:crypto";
 import * as webpush from "web-push";
 import { emailDelivery } from "./web-email-relay.js";
@@ -237,8 +238,9 @@ export async function deliverWebNotifications(emailAuthorization: string) {
             await webpush.sendNotification(
               s.rows[0].subscription,
               JSON.stringify({
-                title: "こころの居場所",
-                body: "会員エリアに新しいお知らせがあります。",
+                market: webMarket,
+                title: {jp:"こころの居場所",tw:"心靈歸屬",kr:"마음의 쉼터"}[webMarket],
+                body: {jp:"会員エリアに新しいお知らせがあります。",tw:"會員區有新的通知。",kr:"회원 공간에 새 알림이 있습니다."}[webMarket],
                 url: "/member",
                 tag: "kb-consultation",
               }),

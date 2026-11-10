@@ -2,9 +2,9 @@ name: Build and test
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, taiwan-line-bot, korean-line-bot]
   push:
-    branches: [main]
+    branches: [main, taiwan-line-bot, korean-line-bot]
 
 permissions:
   contents: read
@@ -26,4 +26,8 @@ jobs:
       - run: npm ci --include=dev
       - run: npm run check
       - run: npm run build
+      - run: npm ci --prefix tw --include=dev
+      - run: npm ci --prefix kr --include=dev
+      - run: npm --prefix tw test
+      - run: npm --prefix kr test
       - run: npm test
