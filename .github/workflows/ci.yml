@@ -24,4 +24,4 @@ jobs:
       - run: npm --prefix kr test
       - run: node --test test/regional-web.test.mjs
         env:
-          REGIONAL_WEB_TEST_kr: kr
+          REGIONAL_WEB_TEST_MARKET: kr
