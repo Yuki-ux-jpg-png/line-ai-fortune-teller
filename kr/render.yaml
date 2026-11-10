@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: line-fortune-bot-kr
+    runtime: node
+    repo: https://github.com/Yuki-ux-jpg-png/line-ai-fortune-teller
+    branch: korean-line-bot
+    rootDir: kr
+    region: singapore
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - key: TZ
+        value: Asia/Seoul
+      - key: KR_DATABASE_SSL
+        value: "true"
+      - key: KR_CONSULTATIONS_ENABLED
+        value: "false"
+      - key: KR_PAYMENTS_ENABLED
+        value: "false"
+      - key: KR_LINE_FRIEND_URL
+        value: https://lin.ee/vuCRmaL
+      - key: KR_DATABASE_URL
+        sync: false
+      - key: LINE_KR_CHANNEL_SECRET
+        sync: false
+      - key: LINE_KR_CHANNEL_ACCESS_TOKEN
+        sync: false

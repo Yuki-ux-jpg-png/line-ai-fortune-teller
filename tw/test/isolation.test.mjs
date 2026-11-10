@@ -122,7 +122,7 @@ test('health requires Taiwan schema and payment pages use zh-TW',async()=>{
  for(const path of ['/payment/success','/payment/cancel'])assert.match(await (await fetch(base+path)).text(),/lang="zh-TW"/);
 });
 test('Taiwan migrations exclude Japanese repair jobs and seed all three localized tellers',async()=>{
- const files=await fs.readdir(new URL('../migrations/',import.meta.url));assert.deepEqual(files.sort(),['001_init.sql','002_tellers_zh_tw.sql']);
+ const files=await fs.readdir(new URL('../migrations/',import.meta.url));assert.deepEqual(files.sort(),['001_init.sql','002_tellers_zh_tw.sql','003_web_member_consultations.sql']);
  const seed=await fs.readFile(new URL('../migrations/002_tellers_zh_tw.sql',import.meta.url),'utf8');
  for(const id of ['yuri','mao','kei'])assert(seed.includes("'"+id+"'"));assert(!/[ぁ-んァ-ヶ]/.test(seed));
 });

@@ -1,0 +1,33 @@
+name: Build and test
+
+on:
+  pull_request:
+    branches: [main, taiwan-line-bot, korean-line-bot]
+  push:
+    branches: [main, taiwan-line-bot, korean-line-bot]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --include=dev
+      - run: npm run check
+      - run: npm run build
+      - run: npm ci --prefix tw --include=dev
+      - run: npm ci --prefix kr --include=dev
+      - run: npm --prefix tw test
+      - run: npm --prefix kr test
+      - run: npm test

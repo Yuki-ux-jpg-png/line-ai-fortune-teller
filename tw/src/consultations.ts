@@ -246,6 +246,7 @@ export async function confirmConsultation(
       `SELECT id, status
          FROM consultations
         WHERE id = $1 AND line_user_id = $2
+          AND NOT EXISTS(SELECT 1 FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id)
         FOR UPDATE`,
       [consultationId, lineUserId],
     );
@@ -393,7 +394,7 @@ export async function releaseLineEvent(webhookEventId: string): Promise<void> {
 }
 
 export type StripeCompletionResult =
-  | { type: "completed"; lineUserId: string }
+  | { type: "completed"; lineUserId: string; deliveryChannel: string }
   | { type: "duplicate" }
   | { type: "ignored" };
 
@@ -426,9 +427,10 @@ export async function completeStripeCheckout(
     }
 
     const consultationResult = await client.query<{ status: string }>(
-      `SELECT status
+      `SELECT status, delivery_channel
          FROM consultations
         WHERE id = $1 AND line_user_id = $2
+          AND NOT EXISTS(SELECT 1 FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id)
         FOR UPDATE`,
       [consultationId, lineUserId],
     );
@@ -485,7 +487,7 @@ export async function completeStripeCheckout(
       [lineUserId],
     );
 
-    return { type: "completed", lineUserId };
+    return { type: "completed", lineUserId, deliveryChannel: (consultation as { delivery_channel?: string }).delivery_channel ?? "line" };
   });
 }
 
@@ -570,6 +572,7 @@ export async function claimGenerationJob(): Promise<GenerationJob | null> {
          FROM consultations
         WHERE status = 'queued_generation'
           AND generation_attempts < 3
+          AND NOT EXISTS (SELECT 1 FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id)
         ORDER BY created_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED`,
@@ -687,6 +690,7 @@ export type DeliveryJob = {
   answer: string;
   line_retry_key: string;
   send_attempts: number;
+  delivery_channel: string;
 };
 
 export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
@@ -697,6 +701,7 @@ export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
         WHERE status = 'scheduled'
           AND deliver_at <= now()
           AND send_attempts < 5
+          AND NOT EXISTS (SELECT 1 FROM consultation_processing_holds h WHERE h.consultation_id=consultations.id)
         ORDER BY deliver_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED`,
@@ -707,12 +712,13 @@ export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
     const result = await client.query<DeliveryJob>(
       `UPDATE consultations
           SET status = 'sending',
+              first_send_attempt_at = COALESCE(first_send_attempt_at,now()),
               send_attempts = send_attempts + 1,
               locked_at = now(),
               updated_at = now()
         WHERE id = $1
         RETURNING id, line_user_id, answer, line_retry_key::text,
-                  send_attempts`,
+                  send_attempts, delivery_channel`,
       [id],
     );
     return result.rows[0] ?? null;
@@ -721,13 +727,19 @@ export async function claimDeliveryJob(): Promise<DeliveryJob | null> {
 
 export async function markDelivered(job: DeliveryJob): Promise<void> {
   await withTransaction(async (client) => {
-    await client.query(
+    const updated = await client.query(
       `UPDATE consultations
           SET status = 'sent', sent_at = now(), locked_at = NULL,
               last_error = NULL, updated_at = now()
-        WHERE id = $1 AND status = 'sending'`,
+        WHERE id = $1 AND status = 'sending' RETURNING id`,
       [job.id],
     );
+    if (!updated.rowCount) return;
+    if (job.delivery_channel === "web")
+      await client.query(
+        `INSERT INTO web_notices(consultation_id,kind) VALUES($1,'ready') ON CONFLICT DO NOTHING`,
+        [job.id],
+      );
     await client.query(
       `UPDATE consultation_credits
           SET status = 'consumed', consumed_at = now()
