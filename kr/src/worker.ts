@@ -1,3 +1,4 @@
+import { runRegionalWorker } from "./web-worker.js";
 import { generateReading } from "./ai.js";
 import { config } from "./config.js";
 import {
@@ -115,6 +116,7 @@ async function processDeliveries(): Promise<void> {
     if (!job) break;
 
     try {
+      if (job.delivery_channel === "web") { await markDelivered(job); continue; }
       const readingChunks = splitReadingForLine(job.answer);
       if (readingChunks.length === 0) {
         throw new Error("送信する鑑定結果が空です");
@@ -159,7 +161,7 @@ async function main(): Promise<void> {
 
 }
 
-main()
+runRegionalWorker(main)
   .catch((error) => {
     console.error("Worker failed", error);
     process.exitCode = 1;

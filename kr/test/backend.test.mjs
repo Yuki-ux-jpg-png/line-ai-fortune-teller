@@ -19,6 +19,8 @@ async function run(sql,args=[]){const r=await db.query(sql,args);return {rows:r.
 test.before(async()=>{
  await db.exec("CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role; CREATE TABLE public.users(id text); INSERT INTO public.users VALUES ('jp-sentinel'); CREATE TABLE public.fortunes(id text); INSERT INTO public.fortunes VALUES ('jp-fortune'); CREATE SCHEMA line_tw; CREATE TABLE line_tw.users(id text); INSERT INTO line_tw.users VALUES ('tw-sentinel');");
  await db.exec('BEGIN;'+await fs.readFile(new URL('../setup.sql',import.meta.url),'utf8')+'COMMIT;');
+ await db.exec("SET search_path TO line_kr;");
+ await db.exec(await fs.readFile(new URL('../migrations/004_web_member_consultations.sql',import.meta.url),'utf8'));
  await db.exec("SET ROLE line_kr_app; SET search_path TO line_kr; SET timezone TO 'Asia/Seoul';");
  pool.query=run;pool.connect=async()=>({query:run,release(){}});
  globalThis.fetch=async(input,options={})=>{
