@@ -8,11 +8,11 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "node ../scripts/stage-regional-web.mjs tw && tsc -p tsconfig.json",
+    "build": "node scripts/stage-web.mjs && tsc -p tsconfig.json",
     "start": "node dist/src/server.js",
     "worker": "node dist/src/worker.js",
     "migrate": "node dist/src/migrate.js",
-    "check": "node ../scripts/stage-regional-web.mjs tw && tsc -p tsconfig.json --noEmit",
+    "check": "node scripts/stage-web.mjs && tsc -p tsconfig.json --noEmit",
     "migrate:dev": "tsx src/migrate.ts",
     "test": "npm run build && node --test test/*.test.mjs"
   },
